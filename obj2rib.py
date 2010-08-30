@@ -86,34 +86,45 @@ def main(args):
         out_fname = RI_NULL
 
     RiBegin(out_fname)
-    RiFormat(512,512, 1)
-
-    RiFrameBegin(0)
-    RiDisplay('default.tif', "file", "rgba", RI_NULL)
-    RiLightSource("distantlight", RI_NULL)
-    RiProjection("perspective", RI_NULL)
-    RiTranslate(0.0, 0.0, 6.0)
-    RiRotate(45.0, -1.0,1.0,0.0)
-
-    RiWorldBegin()
-    
-    RiAttributeBegin()
-    RiColor([0,1,0])
-    RiOpacity([0.5,0.5,0.5])
-    RiSurface("plastic",RI_NULL)
-
+    RiFormat(2048,1152, 1)
     obj = MyObj()
-    
+
     with open(in_fname) as inf:
         obj.read(inf)
 
-    RiScale([2,2,2])
+    RiObjectBegin(1)
     obj.to_rib()
+    RiObjectEnd()
 
-    RiAttributeEnd()
-    
-    RiWorldEnd()
-    RiFrameEnd()
+
+    t = 0
+    frames = 1
+    tdiff = 1/frames
+    for i in range(frames):
+        RiFrameBegin(i)
+        RiDisplay('output/bg{0:04d}.tif'.format(i), "file", "rgba", RI_NULL)
+        RiLightSource("distantlight", RI_NULL)
+        RiProjection("perspective", RI_NULL)
+        RiTranslate(0.0, 0.0, 6.0)
+        RiRotate(45.0, -1.0,1.0,0.0)
+
+        RiRotate(t*360.0, 0.0,1.0,0.0)
+
+        RiWorldBegin()
+
+        RiAttributeBegin()
+        RiColor([0,1,0])
+        RiOpacity([0.5,0.5,0.5])
+        RiSurface("plastic",RI_NULL)
+
+        RiScale([2,2,2])
+        RiObjectInstance(1)
+        RiAttributeEnd()
+
+        RiWorldEnd()
+        RiFrameEnd()
+        t += tdiff
+        
     RiEnd()
     
 if __name__=='__main__':
