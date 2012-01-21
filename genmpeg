@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
 import os
+import os.path
+
 import sys
 import glob
 
@@ -15,10 +17,11 @@ def main(args):
     
     for fn in glob.glob(prefix + '*.tif'):
         nfn = fn + '.jpg'
-        print('{} -> {}'.format(fn, nfn))
-        os.system('convert -quality 100 {} {}'.format(fn, nfn))
-        
-    os.system('mencoder "mf://{}*.tif.jpg" -oac lavc -ovc lavc -lavcopts acodec=mp2:vcodec=mpeg2video:mbd=1:vbitrate=3800 -of mpeg -o {}'.format(prefix, outfname))
+        if (not os.path.exists(nfn)):
+            print('{} -> {}'.format(fn, nfn))
+            os.system('convert -quality 100 {} {}'.format(fn, nfn))
+
+    os.system('ffmpeg -r 30 -b 2400 -i {prefix}%03d.tif.jpg -q 4 {outfile}'.format(prefix=prefix, outfile=outfname))
 
 
 if __name__=='__main__':
