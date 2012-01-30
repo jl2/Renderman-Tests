@@ -1,0 +1,45 @@
+#!/usr/bin/env python3
+
+import os
+import os.path
+
+import sys
+import glob
+import argparse
+
+def main(args):
+    parser = argparse.ArgumentParser(description="Create a movie from images")
+    parser.add_argument('--indir', help='The directory containing the images',
+                        type=os.path.abspath, required=True, metavar='<directory>')
+    parser.add_argument('--prefix', help="The base name of the images.  Will look for: \"directory/basename*.tif\"",
+                        default="")
+    parser.add_argument('--out', help='The name of the output file.  Must be recognized by ffmpeg',
+                        type=os.path.abspath, required=True, metavar='<outfile>')
+    parser.add_argument('--audio', help='The audio file for the sound.  Must be supported by ffmpeg',
+                        type=os.path.abspath, default=None, metavar='<audio file>')
+    pargs = parser.parse_args(args)    
+
+    for fn in glob.glob(pargs.indir+'/' + pargs.prefix + '*.tif'):
+        nfn = fn + '.jpg'
+        if (not os.path.exists(nfn)):
+            print('{} -> {}'.format(fn, nfn))
+            os.system('convert -quality 100 {} {}'.format(fn, nfn))
+
+    out_movie = pargs.out
+    idx = out_movie.rfind('.')
+    tmp_movie = out_movie[:idx] + '_tmp' + out_movie[idx:]
+    os.system('ffmpeg -r 30 -b 2400 -i {directory}/{prefix}%05d.tif.jpg -q 4 {outfile}'.format(directory=pargs.indir,
+                                                                                               prefix=pargs.prefix,
+                                                                                               outfile=tmp_movie))
+    if pargs.audio is not None:
+        os.system('ffmpeg -i {inmovie} -i "{insound}" -acodec copy -vcodec copy -ab 320k -ar 44100 {outfile}'.format(inmovie=tmp_movie,
+                                                                                                                     insound=pargs.audio,
+                                                                                                                     outfile=out_movie))
+        os.remove(tmp_movie)
+    else:
+        os.rename(tmp_movie, out_movie)
+    
+if __name__=='__main__':
+    main(sys.argv[1:])
+
+    

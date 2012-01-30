@@ -7,7 +7,7 @@ INC_DIRS = -I${RENDERMANDIR}/include
 LIB_DIRS = -L${RENDERMANDIR}/lib/
 
 # additional libraries
-LIBS = -l3delight -lm -ldl -lc -lavformat -lavcodec -lavutil
+LIBS = -l3delight -lm -ldl -lc -lavformat -lavcodec -lavutil -lfftw3
 
 
 sndanim: sndanim.c Makefile

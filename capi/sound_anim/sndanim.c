@@ -21,6 +21,8 @@
 #include "libavutil/mem.h"
 
 #include <stdio.h>
+#include <complex.h>
+#include <fftw3.h>
 
 #include <ri.h>
 
@@ -183,14 +185,14 @@ void doFrame(int fNum, double rval, char *fName) {
     static RtColor Color = {.2, .4, .6} ;
 
     char buffer[256];
-    sprintf(buffer, "images/%s%04d.tif", fName, fNum);
+    sprintf(buffer, "images/%s%05d.tif", fName, fNum);
     RiDisplay(buffer,(char*)"file",(char*)"rgba",RI_NULL);
   
     RiFormat(800, 600,  1.25);
     RiLightSource((char*)"distantlight",RI_NULL);
     RiProjection((char*)"perspective",RI_NULL);
   
-    RiTranslate(0.0,0.0,10);
+    RiTranslate(0.0,0.0,20);
   
     RiWorldBegin();
   
@@ -239,25 +241,49 @@ int main(int argc, char *argv[]) {
         maxVal = 1<<7;
         break;
     case 2:
-        maxVal = 1<<15;
+        maxVal = 1<<14;
         break;
     default:
         maxVal = 1<<31;
     }
     
     RiBegin(RI_NULL);
+    fftw_complex *fft_in, *fft_out;
+    fftw_plan fft_plan;
+    const int N = 32;
+    fft_in = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * N);
+    fft_out = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * N);
+    fft_plan = fftw_plan_dft_1d(N, fft_in, fft_out, FFTW_FORWARD, FFTW_ESTIMATE);
 
+    const double PI = 3.141592654;
     size_t fnum = 0;
+
     for (size_t i = 0; i<(snd_data.num_samples-per_frame); i+= per_frame) {
-        int32_t sval = average_between(&snd_data, i, i+per_frame);
-        double rval = ((double)sval)/(double)maxVal;
-        double rad = 4.0+(100*rval);
-        printf("Calling doFrame(%lu, %f, %s) of %lu\n", fnum,rad,argv[2], (snd_data.num_samples-per_frame)/per_frame);
+        
+        for (size_t j=0; j< N;++j) {
+            double tmp = get_sample(&snd_data, i, 0) / (double)maxVal;
+            /* fft_in[j]= tmp * 0.5 * (1-cos((2.0*PI*j)/(N-1))); */
+            fft_in[j] = tmp;
+        }
+        
+        fftw_execute(fft_plan);
+        /* int32_t sval = average_between(&snd_data, i, i+per_frame); */
+        /* int32_t sval = get_sample(&snd_data, i, 0); */
+        double mag = 0.0;
+        /* for (size_t j = 0; j< N/2; ++j) { */
+        mag += cabs(fft_out[0]);
+        /* } */
+        /* double rval = 1.0+mag/(N/2); */
+        double rval = mag + 1.0;
+        printf("Calling doFrame(%lu, %f, %s) of %lu\n", fnum,rval,argv[2], (snd_data.num_samples-per_frame)/per_frame);
         fnum += 1;
-        doFrame(fnum, rad, argv[2]);
+        doFrame(fnum, rval, argv[2]);
     }
 
     RiEnd();
+    fftw_destroy_plan(fft_plan);
+    fftw_free(fft_in);
+    fftw_free(fft_out);
     free(snd_data.samples);
 
     return 0;
