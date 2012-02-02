@@ -28,14 +28,27 @@ def main(args):
     out_movie = pargs.out
     idx = out_movie.rfind('.')
     tmp_movie = out_movie[:idx] + '_tmp' + out_movie[idx:]
-    os.system('ffmpeg -r 30 -b 2400 -i {directory}/{prefix}%05d.tif.jpg -q 4 {outfile}'.format(directory=pargs.indir,
-                                                                                               prefix=pargs.prefix,
-                                                                                               outfile=tmp_movie))
+    movie_cmd = 'ffmpeg -r 30 -b 2400 -i {directory}/{prefix}%05d.tif.jpg -q 4 {outfile}'.format(directory=pargs.indir,
+                                                                                                 prefix=pargs.prefix,
+                                                                                                 outfile=tmp_movie)
+    print('Executing: {}'.format(movie_cmd))
+    os.system(movie_cmd)
+    if 'flac' in out_movie[idx:]:
+        out_codec = 'mp2'
+    else:
+        out_codec = 'copy'
+
     if pargs.audio is not None:
-        os.system('ffmpeg -i {inmovie} -i "{insound}" -acodec copy -vcodec copy -ab 320k -ar 44100 {outfile}'.format(inmovie=tmp_movie,
-                                                                                                                     insound=pargs.audio,
-                                                                                                                     outfile=out_movie))
-        os.remove(tmp_movie)
+        snd_cmd = 'ffmpeg -i {inmovie} -i "{insound}" -acodec {codec} -vcodec copy -ab 320k -ar 44100 {outfile}'.format(inmovie=tmp_movie,
+                                                                                                                        insound=pargs.audio,
+                                                                                                                        outfile=out_movie,
+                                                                                                                        codec=out_codec)
+        print('Executing: {}'.format(snd_cmd))
+        os.system(snd_cmd)
+        # if os.path.exists(out_movie):
+        #     os.remove(tmp_movie)
+        # else:
+        #     os.rename(tmp_movie, out_movie)
     else:
         os.rename(tmp_movie, out_movie)
     

@@ -1,5 +1,5 @@
 /*
-  readmp3.c
+  sndanim.c
   
   Copyright (c) 2012, Jeremiah LaRocco jeremiah.larocco@gmail.com
 
@@ -73,7 +73,11 @@ int32_t get_sample(audio_data_t *ad, size_t idx, int8_t channel) {
     return rv;
 }
 
-void doFrame(int fNum, double rval, char *fName);
+void doFrame(int fNum,
+             /* double rval, */
+             size_t cur, int fft_size, fftw_complex *fft_data[],
+             char *fName);
+
 int read_audio(char *fname, audio_data_t *ad);
 
 
@@ -179,7 +183,10 @@ int read_audio(char *fname, audio_data_t *ad) {
     return 1;
 }
 
-void doFrame(int fNum, double rval, char *fName) {
+void doFrame(int fNum,
+             /* double rval, */
+             size_t cur, int fft_size, fftw_complex *fft_data[],
+             char *fName) {
 
     RiFrameBegin(fNum);
     static RtColor Color = {.2, .4, .6} ;
@@ -192,7 +199,11 @@ void doFrame(int fNum, double rval, char *fName) {
     RiLightSource((char*)"distantlight",RI_NULL);
     RiProjection((char*)"perspective",RI_NULL);
   
-    RiTranslate(0.0,0.0,20);
+    RiTranslate(0.0,0.0,0.8*fft_size);
+    /* RiTranslate(0.0,0.0,15); */
+    RiRotate( -100.0, 1.0, 0.0, 0.0);
+    RiRotate(75.0, 0.0,0.0, 1.0);
+    /* RiRotate( 45.0, 0.0, 1.0, 0.0); */
   
     RiWorldBegin();
   
@@ -205,24 +216,37 @@ void doFrame(int fNum, double rval, char *fName) {
     RtFloat opac[] = {0.5, 0.9, 0.3};
 
     RiSurface((char*)"matte", RI_NULL);
-    RiSphere(rval, -rval, rval, 360, RI_NULL);
+    /* RiSphere(rval, -rval, rval, 360, RI_NULL); */
+
+    RiTranslate(-fft_size/2.0, -fft_size/2.0+fft_size/4.0, 0);
+    size_t fft_idx = cur;
+    for (int i=fft_size-1; i>=0; --i) {
+        fft_idx += 1;
+        if (fft_idx == fft_size) {
+            fft_idx = 0;
+        }
+        /* printf("fft_idx = %lu, i = %d\n", fft_idx, i); */
+        for (size_t j=0; j<fft_size/2; ++j) {
+            RiAttributeBegin(); {
+                double fft_v = cabs(fft_data[fft_idx][j]);
+                double r = i/(double)(fft_size-1);
+                double g = fft_v;
+                if (g>1.0) { g = 1.0; }
+                double b = j/(double)(fft_size/2);
+                /* printf("rgb = %f %f %f", r, g, b); */
+                RtColor tc = {r,g,b};
+                RiColor(tc);
+                
+                RiTranslate(fft_size-i, j, fft_v);
+                RiSphere(0.5, -0.5, 0.5, 360, RI_NULL);
+            } RiAttributeEnd();
+        }
+    }
 
     RiWorldEnd();
     RiFrameEnd();
 }
 
-int32_t average_between(audio_data_t *ad, size_t idx1, size_t idx2) {
-    int64_t sum = 0;
-    for (size_t i = idx1; i < idx2; ++i ) {
-        int32_t tmp = get_sample(ad, i, 0);
-        if (tmp<0) {
-            tmp = -tmp;
-        }
-        sum += tmp;
-    }
-    int32_t av = (int32_t)(sum / (int64_t)(idx2-idx1));
-    return av;
-}
 int main(int argc, char *argv[]) {
     if (argc<2) {
         printf("No file names given.\n");
@@ -238,52 +262,79 @@ int main(int argc, char *argv[]) {
     int32_t maxVal = 0;
     switch (snd_data.sample_size) {
     case 1:
-        maxVal = 1<<7;
+        maxVal = 1<<6;
         break;
     case 2:
-        maxVal = 1<<14;
+        maxVal = 1<<12;
         break;
     default:
-        maxVal = 1<<31;
+        maxVal = 1<<30;
     }
-    
-    RiBegin(RI_NULL);
-    fftw_complex *fft_in, *fft_out;
-    fftw_plan fft_plan;
-    const int N = 32;
+    const int N = 128;
+
+    fftw_complex *fft_in  __attribute__ ((aligned (16)));
+    fftw_complex **fft_out  __attribute__ ((aligned (16)));
+
+    fftw_plan *fft_plan  __attribute__ ((aligned (16)));
+
     fft_in = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * N);
-    fft_out = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * N);
-    fft_plan = fftw_plan_dft_1d(N, fft_in, fft_out, FFTW_FORWARD, FFTW_ESTIMATE);
+    fft_out = (fftw_complex**) fftw_malloc(sizeof(fftw_complex*) * N);
 
-    const double PI = 3.141592654;
-    size_t fnum = 0;
-
-    for (size_t i = 0; i<(snd_data.num_samples-per_frame); i+= per_frame) {
+    fft_plan = (fftw_plan*) fftw_malloc(sizeof(fftw_plan) * N);
+    
+    for (int i=0; i<N; ++i) {
+        printf("Allocating plan %d\n", i);
+        fft_out[i] = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * N);
         
-        for (size_t j=0; j< N;++j) {
-            double tmp = get_sample(&snd_data, i, 0) / (double)maxVal;
-            /* fft_in[j]= tmp * 0.5 * (1-cos((2.0*PI*j)/(N-1))); */
-            fft_in[j] = tmp;
+        if (fft_out[i] != NULL) {
+            printf("Creating plan for %d\n", i);
+            fft_plan[i] = fftw_plan_dft_1d(N, fft_in, fft_out[i], FFTW_FORWARD, FFTW_ESTIMATE);
+        } else {
+            printf("fftw_malloc failed!\n");
+            exit(1);
         }
-        
-        fftw_execute(fft_plan);
-        /* int32_t sval = average_between(&snd_data, i, i+per_frame); */
-        /* int32_t sval = get_sample(&snd_data, i, 0); */
-        double mag = 0.0;
-        /* for (size_t j = 0; j< N/2; ++j) { */
-        mag += cabs(fft_out[0]);
-        /* } */
-        /* double rval = 1.0+mag/(N/2); */
-        double rval = mag + 1.0;
-        printf("Calling doFrame(%lu, %f, %s) of %lu\n", fnum,rval,argv[2], (snd_data.num_samples-per_frame)/per_frame);
-        fnum += 1;
-        doFrame(fnum, rval, argv[2]);
+    }
+
+    size_t fnum, cur_out;
+
+    printf("Filling fft_out\n");
+    for (size_t i=0; i<N; ++i) {
+        fft_in[i] = 0.0;
+        for (size_t j=0; j<N; ++j) {
+            fft_out[i][j] = 0.0;
+        }
+    }
+    RiBegin(RI_NULL);
+    size_t num_frames = (snd_data.num_samples-per_frame)/per_frame;
+    for (size_t i = 0, cur_out = 0, fnum = 1; i<(snd_data.num_samples-per_frame); i+= per_frame, ++fnum) {
+
+        for (size_t j=0; j< N/2;++j) {
+            fft_in[j] = (double)get_sample(&snd_data, per_frame*15+i+j, 0)/(double)maxVal;
+        }
+
+        fftw_execute_dft(fft_plan[0], fft_in, fft_out[cur_out]);
+
+        printf("Calling doFrame %lu of %lu\n", fnum, num_frames);
+
+        doFrame(fnum,
+                cur_out, N, fft_out,
+                argv[2]);
+
+        cur_out += 1;
+        if (cur_out == N) {
+            cur_out = 0;
+        }
     }
 
     RiEnd();
-    fftw_destroy_plan(fft_plan);
-    fftw_free(fft_in);
+    for (size_t i=0; i<N; ++i) {
+        fftw_destroy_plan(fft_plan[i]);
+        fftw_free(fft_out[i]);
+    }
     fftw_free(fft_out);
+    fftw_free(fft_in);
+    fftw_free(fft_plan);
+    fftw_cleanup();
     free(snd_data.samples);
 
     return 0;
