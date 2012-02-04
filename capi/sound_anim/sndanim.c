@@ -38,6 +38,25 @@ typedef struct audio_data_s {
     int8_t planar;
 } audio_data_t;
 
+void show_audio_info(audio_data_t *data) {
+    printf("Buffer size: %lu\n"
+           "Used buffer: %lu\n"
+           "Num Samples: %lu\n"
+           "Sample size: %lu\n"
+           "Sample rate: %lu\n"
+           "Channels   : %d\n"
+           "Duration   : %5.2f\n"
+           "Planar     : %d\n",
+           data->buffer_size,
+           data->used_buffer_size,
+           data->num_samples,
+           data->sample_size,
+           data->sample_rate,
+           data->channels,
+           data->duration,
+           data->planar);
+
+}
 int32_t get_sample(audio_data_t *ad, size_t idx, int8_t channel) {
     int32_t rv = 0;
     if (idx > ad->num_samples ||
@@ -199,10 +218,10 @@ void doFrame(int fNum,
     RiLightSource((char*)"distantlight",RI_NULL);
     RiProjection((char*)"perspective",RI_NULL);
   
-    RiTranslate(0.0,0.0,0.8*fft_size);
+    RiTranslate(0.0,0.0,0.6*fft_size);
     /* RiTranslate(0.0,0.0,15); */
     RiRotate( -100.0, 1.0, 0.0, 0.0);
-    RiRotate(75.0, 0.0,0.0, 1.0);
+    RiRotate(90.0, 0.0,0.0, 1.0);
     /* RiRotate( 45.0, 0.0, 1.0, 0.0); */
   
     RiWorldBegin();
@@ -270,30 +289,22 @@ int main(int argc, char *argv[]) {
     default:
         maxVal = 1<<30;
     }
-    const int N = 128;
+    const int N = 200;
 
     fftw_complex *fft_in  __attribute__ ((aligned (16)));
     fftw_complex **fft_out  __attribute__ ((aligned (16)));
 
-    fftw_plan *fft_plan  __attribute__ ((aligned (16)));
+    fftw_plan fft_plan  __attribute__ ((aligned (16)));
 
     fft_in = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * N);
     fft_out = (fftw_complex**) fftw_malloc(sizeof(fftw_complex*) * N);
 
-    fft_plan = (fftw_plan*) fftw_malloc(sizeof(fftw_plan) * N);
-    
     for (int i=0; i<N; ++i) {
         printf("Allocating plan %d\n", i);
         fft_out[i] = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * N);
-        
-        if (fft_out[i] != NULL) {
-            printf("Creating plan for %d\n", i);
-            fft_plan[i] = fftw_plan_dft_1d(N, fft_in, fft_out[i], FFTW_FORWARD, FFTW_ESTIMATE);
-        } else {
-            printf("fftw_malloc failed!\n");
-            exit(1);
-        }
     }
+
+    fft_plan = fftw_plan_dft_1d(N, fft_in, fft_out[0], FFTW_FORWARD, FFTW_ESTIMATE);
 
     size_t fnum, cur_out;
 
@@ -304,6 +315,7 @@ int main(int argc, char *argv[]) {
             fft_out[i][j] = 0.0;
         }
     }
+    show_audio_info(&snd_data);
     RiBegin(RI_NULL);
     size_t num_frames = (snd_data.num_samples-per_frame)/per_frame;
     for (size_t i = 0, cur_out = 0, fnum = 1; i<(snd_data.num_samples-per_frame); i+= per_frame, ++fnum) {
@@ -312,7 +324,7 @@ int main(int argc, char *argv[]) {
             fft_in[j] = (double)get_sample(&snd_data, per_frame*15+i+j, 0)/(double)maxVal;
         }
 
-        fftw_execute_dft(fft_plan[0], fft_in, fft_out[cur_out]);
+        fftw_execute_dft(fft_plan, fft_in, fft_out[cur_out]);
 
         printf("Calling doFrame %lu of %lu\n", fnum, num_frames);
 
@@ -328,12 +340,11 @@ int main(int argc, char *argv[]) {
 
     RiEnd();
     for (size_t i=0; i<N; ++i) {
-        fftw_destroy_plan(fft_plan[i]);
         fftw_free(fft_out[i]);
     }
+    fftw_destroy_plan(fft_plan);
     fftw_free(fft_out);
     fftw_free(fft_in);
-    fftw_free(fft_plan);
     fftw_cleanup();
     free(snd_data.samples);
 
