@@ -203,12 +203,10 @@ int read_audio(char *fname, audio_data_t *ad) {
 }
 
 void doFrame(int fNum,
-             /* double rval, */
              size_t cur, int fft_size, fftw_complex *fft_data[],
              char *fName) {
 
     RiFrameBegin(fNum);
-    static RtColor Color = {.2, .4, .6} ;
 
     char buffer[256];
     sprintf(buffer, "images/%s%05d.tif", fName, fNum);
@@ -218,49 +216,84 @@ void doFrame(int fNum,
     RiLightSource((char*)"distantlight",RI_NULL);
     RiProjection((char*)"perspective",RI_NULL);
   
-    RiTranslate(0.0,0.0,0.6*fft_size);
+    RiTranslate(0.0,0.0,0.8*fft_size);
     /* RiTranslate(0.0,0.0,15); */
-    RiRotate( -100.0, 1.0, 0.0, 0.0);
+    RiRotate( -120.0, 1.0, 0.0, 0.0);
     RiRotate(90.0, 0.0,0.0, 1.0);
     /* RiRotate( 45.0, 0.0, 1.0, 0.0); */
   
     RiWorldBegin();
   
-    RiColor(Color);
-
     /* RiRotate(fNum, 0.0,1.0,0.0); */
-
-    RtFloat  roughness = 0.03;
-    int trace = 1;
-    RtFloat opac[] = {0.5, 0.9, 0.3};
 
     RiSurface((char*)"matte", RI_NULL);
     /* RiSphere(rval, -rval, rval, 360, RI_NULL); */
 
     RiTranslate(-fft_size/2.0, -fft_size/2.0+fft_size/4.0, 0);
-    size_t fft_idx = cur;
+    
+    size_t real_i = cur;
+    RtPoint *pts = malloc(sizeof(RtPoint)*(fft_size*fft_size/2));
+    RtColor *colors = malloc(sizeof(RtColor)*(fft_size*fft_size/2));
+    RtInt *numCurves = malloc(sizeof(RtInt)*fft_size);
+    /* double *widths = malloc(sizeof(double)*fft_size); */
+    size_t cp = 0;
     for (int i=fft_size-1; i>=0; --i) {
-        fft_idx += 1;
-        if (fft_idx == fft_size) {
-            fft_idx = 0;
+        real_i += 1;
+        if (real_i == fft_size) {
+            real_i = 0;
         }
-        /* printf("fft_idx = %lu, i = %d\n", fft_idx, i); */
+        numCurves[i] = fft_size/2;
+        /* for (int i=0; i<fft_size-1; ++i) { */
         for (size_t j=0; j<fft_size/2; ++j) {
-            RiAttributeBegin(); {
-                double fft_v = cabs(fft_data[fft_idx][j]);
-                double r = i/(double)(fft_size-1);
-                double g = fft_v;
-                if (g>1.0) { g = 1.0; }
-                double b = j/(double)(fft_size/2);
-                /* printf("rgb = %f %f %f", r, g, b); */
-                RtColor tc = {r,g,b};
-                RiColor(tc);
-                
-                RiTranslate(fft_size-i, j, fft_v);
-                RiSphere(0.5, -0.5, 0.5, 360, RI_NULL);
-            } RiAttributeEnd();
+
+            colors[cp][0] = real_i/(double)(fft_size-1);
+            colors[cp][1] = cabs(fft_data[real_i][j]);
+            if (colors[cp][1]>1.0) { colors[cp][1] = 1.0; }
+            colors[cp][2] = j/(double)(fft_size/2);
+            
+            pts[cp][0] = fft_size-i;
+            pts[cp][2] = cabs(fft_data[real_i][j]);
+            pts[cp][1] = j;
+            
+            /* widths[cp] = 0.1; */
+            /* RiPolygon( 3, "P", (RtPointer)pts, "Cs", (RtPointer)colors, RI_NULL ); */
+            cp += 1;
         }
     }
+    
+    RiCurves( "linear", fft_size, numCurves, "nonperiodic", "P", (RtPointer)pts, "Cs", (RtPointer)colors, RI_NULL );
+
+    /* free(widths); */
+    free(numCurves);
+    free(colors);
+    free(pts);
+
+    /* RtInt num_polys = (2*fft_size)*(fft_size/2); */
+    /* RtInt *num_verts =malloc(sizeof(RtInt)*num_polys); */
+    /* RtInt total = 0; */
+    /* for (size_t i = 0; i< num_polys; ++i) { */
+    /*     num_verts[i] = 3; */
+    /*     total +=3; */
+    /* } */
+    /* RtInt *verts  = malloc(sizeof(RtInt)*total); */
+    /* for (size_t i = 0; i<total; i+=3) { */
+    /*     if ((i %2) == 0) { */
+    /*         verts[i]=i; */
+    /*         verts[i+1]=i+1; */
+    /*         verts[i+2]=i+fft_size; */
+    /*     } else { */
+    /*         verts[i]=i+1; */
+    /*         verts[i+1]=i+fft_size+1; */
+    /*         verts[i+2]=i+fft_size; */
+    /*     } */
+    /* } */
+
+    /* printf("Rendering %d polygons\n", num_polys); */
+    /* /\* RiPointsPolygons(num_polys, num_verts, verts, "P", pts, "Cs", colors, RI_NULL); *\/ */
+    /* free(verts); */
+    /* free(num_verts); */
+    /* free(pts); */
+    /* free(colors); */
 
     RiWorldEnd();
     RiFrameEnd();
@@ -269,6 +302,7 @@ void doFrame(int fNum,
 int main(int argc, char *argv[]) {
     if (argc<2) {
         printf("No file names given.\n");
+        printf("Use:\n\t%s audio_file output_prefix\n\n", argv[0]);
         exit(1);
     }
     av_register_all();
@@ -287,9 +321,9 @@ int main(int argc, char *argv[]) {
         maxVal = 1<<12;
         break;
     default:
-        maxVal = 1<<30;
+        maxVal = 1<<28;
     }
-    const int N = 200;
+    const int N = 120;
 
     fftw_complex *fft_in  __attribute__ ((aligned (16)));
     fftw_complex **fft_out  __attribute__ ((aligned (16)));
@@ -300,7 +334,6 @@ int main(int argc, char *argv[]) {
     fft_out = (fftw_complex**) fftw_malloc(sizeof(fftw_complex*) * N);
 
     for (int i=0; i<N; ++i) {
-        printf("Allocating plan %d\n", i);
         fft_out[i] = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * N);
     }
 
@@ -308,7 +341,6 @@ int main(int argc, char *argv[]) {
 
     size_t fnum, cur_out;
 
-    printf("Filling fft_out\n");
     for (size_t i=0; i<N; ++i) {
         fft_in[i] = 0.0;
         for (size_t j=0; j<N; ++j) {
@@ -316,12 +348,19 @@ int main(int argc, char *argv[]) {
         }
     }
     show_audio_info(&snd_data);
+    
     RiBegin(RI_NULL);
+    
     size_t num_frames = (snd_data.num_samples-per_frame)/per_frame;
     for (size_t i = 0, cur_out = 0, fnum = 1; i<(snd_data.num_samples-per_frame); i+= per_frame, ++fnum) {
 
-        for (size_t j=0; j< N/2;++j) {
-            fft_in[j] = (double)get_sample(&snd_data, per_frame*15+i+j, 0)/(double)maxVal;
+        size_t j_size = N/2;
+        size_t stp = per_frame/(j_size);
+        size_t ci = per_frame*15+i;
+        for (size_t j=0; j< j_size;++j) {
+            
+            fft_in[j] = (double)get_sample(&snd_data, ci, 0)/(double)maxVal;
+            ci += stp;
         }
 
         fftw_execute_dft(fft_plan, fft_in, fft_out[cur_out]);
