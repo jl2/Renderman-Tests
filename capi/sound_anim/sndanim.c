@@ -217,17 +217,12 @@ void doFrame(int fNum,
     RiProjection((char*)"perspective",RI_NULL);
   
     RiTranslate(0.0,0.0,0.8*fft_size);
-    /* RiTranslate(0.0,0.0,15); */
     RiRotate( -120.0, 1.0, 0.0, 0.0);
     RiRotate(90.0, 0.0,0.0, 1.0);
-    /* RiRotate( 45.0, 0.0, 1.0, 0.0); */
   
     RiWorldBegin();
   
-    /* RiRotate(fNum, 0.0,1.0,0.0); */
-
     RiSurface((char*)"matte", RI_NULL);
-    /* RiSphere(rval, -rval, rval, 360, RI_NULL); */
 
     RiTranslate(-fft_size/2.0, -fft_size/2.0+fft_size/4.0, 0);
     
@@ -235,7 +230,6 @@ void doFrame(int fNum,
     RtPoint *pts = malloc(sizeof(RtPoint)*(fft_size*fft_size/2));
     RtColor *colors = malloc(sizeof(RtColor)*(fft_size*fft_size/2));
     RtInt *numCurves = malloc(sizeof(RtInt)*fft_size);
-    /* double *widths = malloc(sizeof(double)*fft_size); */
     size_t cp = 0;
     for (int i=fft_size-1; i>=0; --i) {
         real_i += 1;
@@ -243,7 +237,6 @@ void doFrame(int fNum,
             real_i = 0;
         }
         numCurves[i] = fft_size/2;
-        /* for (int i=0; i<fft_size-1; ++i) { */
         for (size_t j=0; j<fft_size/2; ++j) {
 
             colors[cp][0] = real_i/(double)(fft_size-1);
@@ -255,45 +248,15 @@ void doFrame(int fNum,
             pts[cp][2] = cabs(fft_data[real_i][j]);
             pts[cp][1] = j;
             
-            /* widths[cp] = 0.1; */
-            /* RiPolygon( 3, "P", (RtPointer)pts, "Cs", (RtPointer)colors, RI_NULL ); */
             cp += 1;
         }
     }
     
     RiCurves( "linear", fft_size, numCurves, "nonperiodic", "P", (RtPointer)pts, "Cs", (RtPointer)colors, RI_NULL );
 
-    /* free(widths); */
     free(numCurves);
     free(colors);
     free(pts);
-
-    /* RtInt num_polys = (2*fft_size)*(fft_size/2); */
-    /* RtInt *num_verts =malloc(sizeof(RtInt)*num_polys); */
-    /* RtInt total = 0; */
-    /* for (size_t i = 0; i< num_polys; ++i) { */
-    /*     num_verts[i] = 3; */
-    /*     total +=3; */
-    /* } */
-    /* RtInt *verts  = malloc(sizeof(RtInt)*total); */
-    /* for (size_t i = 0; i<total; i+=3) { */
-    /*     if ((i %2) == 0) { */
-    /*         verts[i]=i; */
-    /*         verts[i+1]=i+1; */
-    /*         verts[i+2]=i+fft_size; */
-    /*     } else { */
-    /*         verts[i]=i+1; */
-    /*         verts[i+1]=i+fft_size+1; */
-    /*         verts[i+2]=i+fft_size; */
-    /*     } */
-    /* } */
-
-    /* printf("Rendering %d polygons\n", num_polys); */
-    /* /\* RiPointsPolygons(num_polys, num_verts, verts, "P", pts, "Cs", colors, RI_NULL); *\/ */
-    /* free(verts); */
-    /* free(num_verts); */
-    /* free(pts); */
-    /* free(colors); */
 
     RiWorldEnd();
     RiFrameEnd();
