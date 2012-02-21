@@ -23,15 +23,74 @@
 
 #include <ri.h>
 
+typedef struct camera_s {
+    RtPoint location;
+    RtPoint look_at;
+    double roll;
+} camera_t;
+
 typedef struct scene_info_s {
-    double x_rotation;
-    double y_rotation;
-    double z_rotation;
-    double x_trans;
-    double y_trans;
-    double z_trans;
+    camera_t cam;
     char *fprefix;
 } scene_info_t;
+
+const double PI = 3.141592654;
+
+/*
+ * AimZ(): rotate the world so the direction vector points in
+ *  positive z by rotating about the y axis, then x. The cosine
+ *  of each rotation is given by components of the normalized
+ *  direction vector. Before the y rotation the direction vector
+ *  might be in negative z, but not afterward.
+ */
+void AimZ(RtPoint direction)
+{
+        double xzlen, yzlen, yrot, xrot;
+
+        if (direction[0]==0 && direction[1]==0 && direction[2]==0)
+                return;
+
+        /*
+         * The initial rotation about the y axis is given by the projection of
+         * the direction vector onto the x,z plane: the x and z components
+         * of the direction.
+         */
+         xzlen = sqrt(direction[0]*direction[0]+direction[2]*direction[2]);
+         if (xzlen == 0)
+                 yrot = (direction[1] < 0) ? 180 : 0;
+         else
+                 yrot = 180*acos(direction[2]/xzlen)/PI;
+
+        /*
+         * The second rotation, about the x axis, is given by the projection on
+         * the y,z plane of the y-rotated direction vector: the original y
+         * component, and the rotated x,z vector from above.
+         */
+         yzlen = sqrt(direction[1]*direction[1]+xzlen*xzlen);
+         xrot = 180*acos(xzlen/yzlen)/PI; /* yzlen should never be 0 */
+
+         if (direction[1] > 0)
+                 RiRotate(xrot, 1.0, 0.0, 0.0);
+         else
+                 RiRotate(-xrot, 1.0, 0.0, 0.0);
+
+        /* The last rotation declared gets performed first */
+        if (direction[0] > 0)
+                RiRotate(-yrot, 0.0, 1.0, 0.0);
+        else
+                RiRotate(yrot, 0.0, 1.0, 0.0);
+}
+
+void PlaceCamera(camera_t *cam)
+{
+        RiRotate(-cam->roll, 0.0, 0.0, 1.0);
+        RtPoint direction;
+        direction[0] = cam->look_at[0]-cam->location[0];
+        direction[1] = cam->look_at[1]-cam->location[1];
+        direction[2] = cam->look_at[2]-cam->location[2];
+        AimZ(direction);
+        RiTranslate(-cam->location[0], -cam->location[1], -cam->location[2]);
+}
 
 void doFrame(int fNum, scene_info_t *scene);
 
@@ -42,7 +101,17 @@ double y(double u, double v) {
     return v;
 }
 double z(double u, double v) {
-    return 2.0 * sin(u) * cos(v);
+    return 2*sin(u) * cos(v);
+}
+
+double r(double u, double v) {
+    return 0.0;
+}
+double g(double u, double v) {
+    return 0.8;
+}
+double b(double u, double v) {
+    return 0.2;
 }
 
 void doFrame(int fNum, scene_info_t *scene) {
@@ -57,11 +126,12 @@ void doFrame(int fNum, scene_info_t *scene) {
     RiLightSource((char*)"distantlight",RI_NULL);
     RiProjection((char*)"perspective",RI_NULL);
   
-    RiTranslate(scene->x_trans, scene->y_trans, scene->z_trans);
-    RiRotate( scene->x_rotation, 1.0, 0.0, 0.0);
-    RiRotate( scene->y_rotation, 0.0, 1.0, 0.0);
-    RiRotate( scene->z_rotation, 0.0, 0.0, 1.0);
-    
+    /* RiTranslate(scene->x_trans, scene->y_trans, scene->z_trans); */
+    /* RiRotate( scene->x_rotation, 1.0, 0.0, 0.0); */
+    /* RiRotate( scene->y_rotation, 0.0, 1.0, 0.0); */
+    /* RiRotate( scene->z_rotation, 0.0, 0.0, 1.0); */
+
+    PlaceCamera(&scene->cam);
     RiWorldBegin();
   
     RiSurface((char*)"matte", RI_NULL);
@@ -70,7 +140,7 @@ void doFrame(int fNum, scene_info_t *scene) {
     const size_t NUM_J = 256;
 
     RtPoint *pts = malloc(sizeof(RtPoint)*NUM_I*NUM_J);
-    const double PI = 3.141592654;
+    RtColor *colors = malloc(sizeof(RtPoint)*NUM_I*NUM_J);
     
     double umin  = -4*PI;
     double umax = 4*PI;
@@ -84,8 +154,12 @@ void doFrame(int fNum, scene_info_t *scene) {
         double v = vmin;
         for (size_t j=0; j < NUM_J; ++j) {
             pts[i*NUM_J + j][0] = x(u,v);
-            pts[i*NUM_J + j][1] = y(u,v);
-            pts[i*NUM_J + j][2] = z(u,v);
+            pts[i*NUM_J + j][1] = z(u,v);
+            pts[i*NUM_J + j][2] = y(u,v);
+
+            colors[i*NUM_J + j][0] = r(u,v);
+            colors[i*NUM_J + j][1] = g(u,v);
+            colors[i*NUM_J + j][2] = b(u,v);
 
             /* RiTransformBegin(); */
             /* RiTranslate(x(u,v), y(u,v), z(u,v)); */
@@ -117,11 +191,12 @@ void doFrame(int fNum, scene_info_t *scene) {
         }
     }
     
-    RiPointsPolygons(curIdx/3, nvertices, vertices, "P", pts, RI_NULL);
+    RiPointsPolygons(curIdx/3, nvertices, vertices, "P", pts, "Cs", colors, RI_NULL);
     /* RiSphere(10.0, -10.0, 10.0, 360.0); */
 
     free(vertices);
     free(nvertices);
+    free(colors);
     free(pts);
                     
     RiWorldEnd();
@@ -135,26 +210,44 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
-    const size_t NUM_FRAMES = 100;
+    /* const size_t NUM_FRAMES = 10; */
 
     RiBegin(RI_NULL);
 
     scene_info_t scene;
-    scene.x_rotation = -120.0;
-    scene.z_rotation = 90.0;
-    scene.y_rotation = 0.0;
 
-    scene.x_trans = 0.0;
-    scene.y_trans = 0.0;
-    scene.z_trans = 0.0;
+    scene.cam.location[0] = 20;
+    scene.cam.location[1] = 20;
+    scene.cam.location[2] = 20;
 
+    scene.cam.look_at[0]= 0.0;
+    scene.cam.look_at[1]= 0.0;
+    scene.cam.look_at[2]= 0.0;
+    scene.cam.roll = 0.0;
+    
     scene.fprefix = argv[1];
 
-    scene.z_trans = 15.0;
-
-    for (size_t fnum = 0; fnum< NUM_FRAMES; ++fnum) {
-        doFrame(fnum, &scene);
-        scene.z_rotation += (360.0/(NUM_FRAMES-1));
+    size_t cur_frame = 0;
+    
+    for (size_t fnum = 0; fnum <= 20; ++fnum) {
+        doFrame(cur_frame, &scene);
+        scene.cam.location[0] -= 2;
+        cur_frame += 1;
+    }
+    for (size_t fnum = 0; fnum <= 20; ++fnum) {
+        doFrame(cur_frame, &scene);
+        scene.cam.location[1] -= 2;
+        cur_frame += 1;
+    }
+    for (size_t fnum = 0; fnum <= 20; ++fnum) {
+        doFrame(cur_frame, &scene);
+        scene.cam.location[0] += 2;
+        cur_frame += 1;
+    }
+    for (size_t fnum = 0; fnum <= 20; ++fnum) {
+        doFrame(cur_frame, &scene);
+        scene.cam.location[1] += 2;
+        cur_frame += 1;
     }
 
     RiEnd();
