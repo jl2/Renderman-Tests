@@ -45,51 +45,51 @@ const double PI = 3.141592654;
  */
 void AimZ(RtPoint direction)
 {
-        double xzlen, yzlen, yrot, xrot;
+    double xzlen, yzlen, yrot, xrot;
 
-        if (direction[0]==0 && direction[1]==0 && direction[2]==0)
-                return;
+    if (direction[0]==0 && direction[1]==0 && direction[2]==0)
+        return;
 
-        /*
-         * The initial rotation about the y axis is given by the projection of
-         * the direction vector onto the x,z plane: the x and z components
-         * of the direction.
-         */
-         xzlen = sqrt(direction[0]*direction[0]+direction[2]*direction[2]);
-         if (xzlen == 0)
-                 yrot = (direction[1] < 0) ? 180 : 0;
-         else
-                 yrot = 180*acos(direction[2]/xzlen)/PI;
+    /*
+     * The initial rotation about the y axis is given by the projection of
+     * the direction vector onto the x,z plane: the x and z components
+     * of the direction.
+     */
+    xzlen = sqrt(direction[0]*direction[0]+direction[2]*direction[2]);
+    if (xzlen == 0)
+        yrot = (direction[1] < 0) ? 180 : 0;
+    else
+        yrot = 180*acos(direction[2]/xzlen)/PI;
 
-        /*
-         * The second rotation, about the x axis, is given by the projection on
-         * the y,z plane of the y-rotated direction vector: the original y
-         * component, and the rotated x,z vector from above.
-         */
-         yzlen = sqrt(direction[1]*direction[1]+xzlen*xzlen);
-         xrot = 180*acos(xzlen/yzlen)/PI; /* yzlen should never be 0 */
+    /*
+     * The second rotation, about the x axis, is given by the projection on
+     * the y,z plane of the y-rotated direction vector: the original y
+     * component, and the rotated x,z vector from above.
+     */
+    yzlen = sqrt(direction[1]*direction[1]+xzlen*xzlen);
+    xrot = 180*acos(xzlen/yzlen)/PI; /* yzlen should never be 0 */
 
-         if (direction[1] > 0)
-                 RiRotate(xrot, 1.0, 0.0, 0.0);
-         else
-                 RiRotate(-xrot, 1.0, 0.0, 0.0);
+    if (direction[1] > 0)
+        RiRotate(xrot, 1.0, 0.0, 0.0);
+    else
+        RiRotate(-xrot, 1.0, 0.0, 0.0);
 
-        /* The last rotation declared gets performed first */
-        if (direction[0] > 0)
-                RiRotate(-yrot, 0.0, 1.0, 0.0);
-        else
-                RiRotate(yrot, 0.0, 1.0, 0.0);
+    /* The last rotation declared gets performed first */
+    if (direction[0] > 0)
+        RiRotate(-yrot, 0.0, 1.0, 0.0);
+    else
+        RiRotate(yrot, 0.0, 1.0, 0.0);
 }
 
 void PlaceCamera(camera_t *cam)
 {
-        RiRotate(-cam->roll, 0.0, 0.0, 1.0);
-        RtPoint direction;
-        direction[0] = cam->look_at[0]-cam->location[0];
-        direction[1] = cam->look_at[1]-cam->location[1];
-        direction[2] = cam->look_at[2]-cam->location[2];
-        AimZ(direction);
-        RiTranslate(-cam->location[0], -cam->location[1], -cam->location[2]);
+    RiRotate(-cam->roll, 0.0, 0.0, 1.0);
+    RtPoint direction;
+    direction[0] = cam->look_at[0]-cam->location[0];
+    direction[1] = cam->look_at[1]-cam->location[1];
+    direction[2] = cam->look_at[2]-cam->location[2];
+    AimZ(direction);
+    RiTranslate(-cam->location[0], -cam->location[1], -cam->location[2]);
 }
 
 void doFrame(int fNum, scene_info_t *scene);
