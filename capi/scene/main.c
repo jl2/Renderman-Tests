@@ -45,51 +45,51 @@ const double PI = 3.141592654;
  */
 void AimZ(RtPoint direction)
 {
-        double xzlen, yzlen, yrot, xrot;
+    double xzlen, yzlen, yrot, xrot;
 
-        if (direction[0]==0 && direction[1]==0 && direction[2]==0)
-                return;
+    if (direction[0]==0 && direction[1]==0 && direction[2]==0)
+        return;
 
-        /*
-         * The initial rotation about the y axis is given by the projection of
-         * the direction vector onto the x,z plane: the x and z components
-         * of the direction.
-         */
-         xzlen = sqrt(direction[0]*direction[0]+direction[2]*direction[2]);
-         if (xzlen == 0)
-                 yrot = (direction[1] < 0) ? 180 : 0;
-         else
-                 yrot = 180*acos(direction[2]/xzlen)/PI;
+    /*
+     * The initial rotation about the y axis is given by the projection of
+     * the direction vector onto the x,z plane: the x and z components
+     * of the direction.
+     */
+    xzlen = sqrt(direction[0]*direction[0]+direction[2]*direction[2]);
+    if (xzlen == 0)
+        yrot = (direction[1] < 0) ? 180 : 0;
+    else
+        yrot = 180*acos(direction[2]/xzlen)/PI;
 
-        /*
-         * The second rotation, about the x axis, is given by the projection on
-         * the y,z plane of the y-rotated direction vector: the original y
-         * component, and the rotated x,z vector from above.
-         */
-         yzlen = sqrt(direction[1]*direction[1]+xzlen*xzlen);
-         xrot = 180*acos(xzlen/yzlen)/PI; /* yzlen should never be 0 */
+    /*
+     * The second rotation, about the x axis, is given by the projection on
+     * the y,z plane of the y-rotated direction vector: the original y
+     * component, and the rotated x,z vector from above.
+     */
+    yzlen = sqrt(direction[1]*direction[1]+xzlen*xzlen);
+    xrot = 180*acos(xzlen/yzlen)/PI; /* yzlen should never be 0 */
 
-         if (direction[1] > 0)
-                 RiRotate(xrot, 1.0, 0.0, 0.0);
-         else
-                 RiRotate(-xrot, 1.0, 0.0, 0.0);
+    if (direction[1] > 0)
+        RiRotate(xrot, 1.0, 0.0, 0.0);
+    else
+        RiRotate(-xrot, 1.0, 0.0, 0.0);
 
-        /* The last rotation declared gets performed first */
-        if (direction[0] > 0)
-                RiRotate(-yrot, 0.0, 1.0, 0.0);
-        else
-                RiRotate(yrot, 0.0, 1.0, 0.0);
+    /* The last rotation declared gets performed first */
+    if (direction[0] > 0)
+        RiRotate(-yrot, 0.0, 1.0, 0.0);
+    else
+        RiRotate(yrot, 0.0, 1.0, 0.0);
 }
 
 void PlaceCamera(camera_t *cam)
 {
-        RiRotate(-cam->roll, 0.0, 0.0, 1.0);
-        RtPoint direction;
-        direction[0] = cam->look_at[0]-cam->location[0];
-        direction[1] = cam->look_at[1]-cam->location[1];
-        direction[2] = cam->look_at[2]-cam->location[2];
-        AimZ(direction);
-        RiTranslate(-cam->location[0], -cam->location[1], -cam->location[2]);
+    RiRotate(-cam->roll, 0.0, 0.0, 1.0);
+    RtPoint direction;
+    direction[0] = cam->look_at[0]-cam->location[0];
+    direction[1] = cam->look_at[1]-cam->location[1];
+    direction[2] = cam->look_at[2]-cam->location[2];
+    AimZ(direction);
+    RiTranslate(-cam->location[0], -cam->location[1], -cam->location[2]);
 }
 
 void doFrame(int fNum, scene_info_t *scene);
@@ -136,7 +136,7 @@ void doFrame(int fNum, scene_info_t *scene) {
                  "int diffuse", (RtPointer)&on,
                  "int specular", (RtPointer)&on,
                  "int photon", (RtPointer)&on,
-    RI_NULL );
+                 RI_NULL );
     RtString on_string = "on";
     RtInt samples = 2;
     RiAttribute( "light", (RtToken)"shadows", (RtPointer)&on_string, (RtToken)"samples", (RtPointer)&samples, RI_NULL );
@@ -227,33 +227,12 @@ int main(int argc, char *argv[]) {
     double dt = 2.0*PI/(NUM_FRAMES-1);
     
     for (size_t fnum = 0; fnum < NUM_FRAMES; ++fnum) {
-        scene.cam.location[0] = rad * sin(t)*sin(2*t) + sin(t);
-        scene.cam.location[2] = rad * cos(t)*sin(2*t) + cos(t);
+        scene.cam.location[0] = rad * sin(t);
+        scene.cam.location[2] = rad * cos(t);
         t += dt;
         printf("Rendering frame %lu\n", fnum);
         doFrame(fnum, &scene);
     }
-    
-    /* for (size_t fnum = 0; fnum <= 20; ++fnum) { */
-        
-        
-    /*     cur_frame += 1; */
-    /* } */
-    /* for (size_t fnum = 0; fnum <= 20; ++fnum) { */
-    /*     doFrame(cur_frame, &scene); */
-    /*     scene.cam.location[2] -= 2; */
-    /*     cur_frame += 1; */
-    /* } */
-    /* for (size_t fnum = 0; fnum <= 20; ++fnum) { */
-    /*     doFrame(cur_frame, &scene); */
-    /*     scene.cam.location[0] += 2; */
-    /*     cur_frame += 1; */
-    /* } */
-    /* for (size_t fnum = 0; fnum <= 20; ++fnum) { */
-    /*     doFrame(cur_frame, &scene); */
-    /*     scene.cam.location[2] += 2; */
-    /*     cur_frame += 1; */
-    /* } */
 
     RiEnd();
 
