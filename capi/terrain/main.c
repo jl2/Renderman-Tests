@@ -135,29 +135,57 @@ void gen_terrain(tri_mesh_t *tmesh) {
     size_t NUM_I = tmesh->NUM_I;
     size_t NUM_J = tmesh->NUM_J;
 
-    double umin = -12*PI;
-    double umax = 12*PI;
-    double vmin = -12*PI;
-    double vmax = 12*PI;
-    double du = (umax-umin)/(NUM_I-1);
-    double dv = (vmax-vmin)/(NUM_J-1);
 
     
-    double u = umin;
-    for (size_t i=0; i< NUM_I; ++i) {
-
-        double v = vmin;
-        for (size_t j=0; j < NUM_J; ++j) {
-            tmesh_set_pt(tmesh, i,j, x(u,v), z(u,v), y(u,v));
+    for (size_t step = NUM_I/2; step > 0; step /=2) {
+        for (size_t i=step; i< NUM_I; i += step) {
+            for (size_t j=step; j < NUM_J; j += step) {
+                double x0,y0,z0;
+                double x1,y1,z1;
+                double x2,y2,z2;
+                double x3,y3,z3;
+                
+                tmesh_get_pt(tmesh, i-step,j-step, &x0,&y0,&z0);
+                tmesh_get_pt(tmesh, i+step,j-step, &x1,&y1,&z1);
+                tmesh_get_pt(tmesh, i+step,j+step, &x2,&y2,&z2);
+                tmesh_get_pt(tmesh, i-step,j+step, &x3,&y3,&z3);
+                
+                double nx,ny,nz;
+                tmesh_get_pt(tmesh, i,j, &nx,&ny,&nz);
+                ny = (y0+y1+y2+y3)/4.0 + randF(-2, 2);
+                nx = (i-(double)NUM_I/2)/2.0;
+                nz = (j-(double)NUM_J/2)/2.0;
+                printf("Assigning pt %lu %lu to %f %f %f\n", i,j, nx, ny, nz);
+                tmesh_set_pt(tmesh, i,j, nx,ny,nz);
             
-            if (i & j & 1) {
                 tmesh_set_color(tmesh, i,j, 0,1,0);
-            } else {
-                tmesh_set_color(tmesh, i,j, 0,0,0);
             }
-            v += dv;
         }
-        u += du;
+        size_t hs = step/2;
+        for (size_t i=hs; i< NUM_I; i += step) {
+            for (size_t j=hs; j < NUM_J; j += step) {
+                double x0,y0,z0;
+                double x1,y1,z1;
+                double x2,y2,z2;
+                double x3,y3,z3;
+                
+                tmesh_get_pt(tmesh, i-hs,j-hs, &x0,&y0,&z0);
+                tmesh_get_pt(tmesh, i+hs,j-hs, &x1,&y1,&z1);
+                tmesh_get_pt(tmesh, i+hs,j+hs, &x2,&y2,&z2);
+                tmesh_get_pt(tmesh, i-hs,j+hs, &x3,&y3,&z3);
+                
+                double nx,ny,nz;
+                tmesh_get_pt(tmesh, i,j, &nx,&ny,&nz);
+                ny = (y0+y1+y2+y3)/4.0 + randF(-2,2);
+                nx = (i-(double)NUM_I/2)/2.0;
+                nz = (j-(double)NUM_J/2)/2.0;
+                printf("Assigning pt %lu %lu to %f %f %f\n", i,j, nx, ny, nz);
+                tmesh_set_pt(tmesh, i,j, nx,ny,nz);
+            
+                tmesh_set_color(tmesh, i,j, 0,1,0);
+            }
+        }
+
     }
 }
 
@@ -216,9 +244,9 @@ int main(int argc, char *argv[]) {
 
     scene_info_t scene;
 
-    scene.cam.location[0] = 20;
-    scene.cam.location[1] = 20;
-    scene.cam.location[2] = 20;
+    scene.cam.location[0] = 50;
+    scene.cam.location[1] = 50;
+    scene.cam.location[2] = 50;
 
     scene.cam.look_at[0]= 0.0;
     scene.cam.look_at[1]= 0.0;

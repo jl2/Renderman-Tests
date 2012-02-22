@@ -38,6 +38,10 @@ void tmesh_alloc(tri_mesh_t *tmesh, size_t ni, size_t nj);
 void tmesh_free(tri_mesh_t *tmesh);
 void tmesh_render(tri_mesh_t *tmesh);
 void tmesh_set_pt(tri_mesh_t *tmesh, size_t i, size_t j, double x, double y, double z);
+
+void tmesh_get_pt(tri_mesh_t *tmesh, size_t i, size_t j, double *x, double *y, double *z);
+
 void tmesh_set_color(tri_mesh_t *tmesh, size_t i, size_t j, double r, double g, double b);
+void tmesh_get_color(tri_mesh_t *tmesh, size_t i, size_t j, double *r, double *g, double *b);
 
 #endif

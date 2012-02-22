@@ -48,7 +48,7 @@ void tmesh_alloc(tri_mesh_t *tmesh, size_t ni, size_t nj) {
     tmesh->vertices = malloc(sizeof(RtInt)*3*tmesh->npolys);
     size_t curIdx = 0;
     for (size_t i = 0; i<(ni-1); ++i) {
-        for (size_t j=0; j<(ni-1); ++j) {
+        for (size_t j=0; j<(nj-1); ++j) {
 
             tmesh->vertices[curIdx  ] = idx(i,j, ni, nj);
             tmesh->vertices[curIdx+1] = idx(i,j+1, ni, nj);
@@ -83,12 +83,30 @@ void tmesh_render(tri_mesh_t *tmesh) {
     RiPointsPolygons(tmesh->npolys, tmesh->nvertices, tmesh->vertices, "P", tmesh->pts, "Cs", tmesh->colors, RI_NULL);
 }
 void tmesh_set_pt(tri_mesh_t *tmesh, size_t i, size_t j, double x, double y, double z) {
-    tmesh->pts[idx(i,j, tmesh->NUM_I, tmesh->NUM_J)][0] = x;
-    tmesh->pts[idx(i,j, tmesh->NUM_I, tmesh->NUM_J)][1] = y;
-    tmesh->pts[idx(i,j, tmesh->NUM_I, tmesh->NUM_J)][2] = z;
+    size_t id = idx(i,j, tmesh->NUM_I, tmesh->NUM_J);
+    tmesh->pts[id][0] = x;
+    tmesh->pts[id][1] = y;
+    tmesh->pts[id][2] = z;
 }
+void tmesh_get_pt(tri_mesh_t *tmesh, size_t i, size_t j, double *x, double *y, double *z) {
+    size_t id = idx(i,j, tmesh->NUM_I, tmesh->NUM_J);
+    *x = tmesh->pts[id][0];
+    *y = tmesh->pts[id][1];
+    *z = tmesh->pts[id][2];
+}
+
 void tmesh_set_color(tri_mesh_t *tmesh, size_t i, size_t j, double r, double g, double b) {
-    tmesh->colors[idx(i,j, tmesh->NUM_I, tmesh->NUM_J)][0] = r;
-    tmesh->colors[idx(i,j, tmesh->NUM_I, tmesh->NUM_J)][1] = g;
-    tmesh->colors[idx(i,j, tmesh->NUM_I, tmesh->NUM_J)][2] = b;
+    size_t id = idx(i,j, tmesh->NUM_I, tmesh->NUM_J);
+
+    tmesh->colors[id][0] = r;
+    tmesh->colors[id][1] = g;
+    tmesh->colors[id][2] = b;
+}
+
+void tmesh_get_color(tri_mesh_t *tmesh, size_t i, size_t j, double *r, double *g, double *b) {
+    size_t id = idx(i,j, tmesh->NUM_I, tmesh->NUM_J);
+
+    *r = tmesh->colors[id][0];
+    *g = tmesh->colors[id][1];
+    *b = tmesh->colors[id][2];
 }
