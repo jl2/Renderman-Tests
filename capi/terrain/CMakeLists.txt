@@ -1,8 +1,6 @@
 cmake_minimum_required( VERSION 2.8 )
 project( terrain )
 
-#=====
-# General
 set( CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/../../config/cmake )
 
 # try to find a rman lib (set by the RMAN envvar)
@@ -16,11 +14,20 @@ include_directories(
 add_executable(terrain main.c trimesh.c
   )
 
+set (COMPILE_C_FLAGS "${3Delight_COMPILE_FLAGS}")
+if (MSVC10)
+    set (COMPILE_C_FLAGS "\"${3Delight_COMPILE_FLAGS}\" /TC")
+elseif (MSVC90)
+    set (COMPILE_C_FLAGS "\"${3Delight_COMPILE_FLAGS}\" /TC")
+elseif (MSVC80)
+    set (COMPILE_C_FLAGS "\"${3Delight_COMPILE_FLAGS}\" /TC")
+endif()
+
 set_target_properties( terrain
   PROPERTIES
   PREFIX ""
   OUTPUT_NAME "terrain"
-  COMPILE_FLAGS "${3Delight_COMPILE_FLAGS}"
+  COMPILE_FLAGS ${COMPILE_C_FLAGS}
   )
 
 target_link_libraries( terrain

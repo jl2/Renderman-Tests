@@ -18,37 +18,44 @@
 
 #include "trimesh.h"
 
+#ifdef _MSC_VER
+#define _CRT_SECURE_NO_WARNINGS
+#pragma warning( disable : 4244 4267 )
+#endif
+
 #include <ri.h>
 
-size_t idx(size_t i, size_t j, size_t NUM_I, size_t NUM_J) {
-    return i*NUM_J + j;
+RtInt idx(size_t i, size_t j, size_t NUM_I, size_t NUM_J) {
+    return (RtInt)(i*NUM_J + j);
 }
 
 void tmesh_alloc(tri_mesh_t *tmesh, size_t ni, size_t nj) {
+    size_t i,j, curIdx;
+    
     tmesh->NUM_I = ni;
     tmesh->NUM_J = nj;
 
-    tmesh->pts = malloc(sizeof(RtPoint)*ni*nj);
-    tmesh->colors = malloc(sizeof(RtColor)*ni*nj);
+    tmesh->pts = (RtPoint*)malloc(sizeof(RtPoint)*ni*nj);
+    tmesh->colors = (RtColor*)malloc(sizeof(RtColor)*ni*nj);
 
-    for (size_t i=0; i< ni; ++i) {
-        for (size_t j=0; j < nj; ++j) {
+    for (i=0; i< ni; ++i) {
+        for (j=0; j < nj; ++j) {
             tmesh_set_pt(tmesh, i,j, 0.0,0.0,0.0);
             tmesh_set_color(tmesh, i,j, 0.0,0.0,0.0);
         }
     }
     
-    tmesh->npolys = 2*(nj+1)*(ni+1);
+    tmesh->npolys = (RtInt)(2*(nj+1)*(ni+1));
 
-    tmesh->nvertices = malloc(sizeof(RtInt) * tmesh->npolys);
-    for (size_t i=0; i<tmesh->npolys; ++i) {
+    tmesh->nvertices = (RtInt*)malloc(sizeof(RtInt) * tmesh->npolys);
+    for (i=0; i<tmesh->npolys; ++i) {
         tmesh->nvertices[i] = 3;
     }
     
-    tmesh->vertices = malloc(sizeof(RtInt)*3*tmesh->npolys);
-    size_t curIdx = 0;
-    for (size_t i = 0; i<(ni-1); ++i) {
-        for (size_t j=0; j<(nj-1); ++j) {
+    tmesh->vertices = (RtInt*)malloc(sizeof(RtInt)*3*tmesh->npolys);
+    curIdx = 0;
+    for (i = 0; i<(ni-1); ++i) {
+        for (j=0; j<(nj-1); ++j) {
 
             tmesh->vertices[curIdx  ] = idx(i,j, ni, nj);
             tmesh->vertices[curIdx+1] = idx(i,j+1, ni, nj);
