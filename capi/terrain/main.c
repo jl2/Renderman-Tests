@@ -1,9 +1,3 @@
-
-
-
-
-
-
 /*
   main.c
   
@@ -21,6 +15,11 @@
   ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
   OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 */
+
+#ifdef _MSC_VER
+#define _CRT_SECURE_NO_WARNINGS
+#pragma warning( disable : 4244 4267 )
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -45,7 +44,6 @@ typedef struct scene_info_s {
 
 
 double randF(double min, double max);
-
 
 const double PI = 3.141592654;
 
@@ -74,9 +72,9 @@ void AimZ(RtPoint direction)
      */
     xzlen = sqrt(direction[0]*direction[0]+direction[2]*direction[2]);
     if (xzlen == 0)
-        yrot = (direction[1] < 0) ? 180 : 0;
+        yrot = (direction[1] < 0) ? 180.0 : 0.0;
     else
-        yrot = 180*acos(direction[2]/xzlen)/PI;
+        yrot = 180.0*acos(direction[2]/xzlen)/PI;
 
     /*
      * The second rotation, about the x axis, is given by the projection on
@@ -100,8 +98,8 @@ void AimZ(RtPoint direction)
 
 void PlaceCamera(camera_t *cam)
 {
-    RiRotate(-cam->roll, 0.0, 0.0, 1.0);
     RtPoint direction;
+    RiRotate(-cam->roll, 0.0, 0.0, 1.0);
     direction[0] = cam->look_at[0]-cam->location[0];
     direction[1] = cam->look_at[1]-cam->location[1];
     direction[2] = cam->look_at[2]-cam->location[2];
@@ -109,7 +107,7 @@ void PlaceCamera(camera_t *cam)
     RiTranslate(-cam->location[0], -cam->location[1], -cam->location[2]);
 }
 
-void doFrame(int fNum, scene_info_t *scene, tri_mesh_t *tmesh);
+void doFrame(size_t fNum, scene_info_t *scene, tri_mesh_t *tmesh);
 
 double x(double u, double v) {
     return u;
@@ -125,76 +123,77 @@ double r(double u, double v) {
     return 0.0;
 }
 double g(double u, double v) {
-    return 0.8;
+    return 0.8f;
 }
 double b(double u, double v) {
-    return 0.2;
+    return 0.2f;
 }
 
 void gen_terrain(tri_mesh_t *tmesh) {
     size_t NUM_I = tmesh->NUM_I;
     size_t NUM_J = tmesh->NUM_J;
+    size_t step, i, j;
 
-
+    double x0,y0,z0;
+    double x1,y1,z1;
+    double x2,y2,z2;
+    double x3,y3,z3;
+    double nx,ny,nz;
+    size_t hs;
     
-    for (size_t step = NUM_I/2; step > 0; step /=2) {
-        for (size_t i=step; i< NUM_I; i += step) {
-            for (size_t j=step; j < NUM_J; j += step) {
-                double x0,y0,z0;
-                double x1,y1,z1;
-                double x2,y2,z2;
-                double x3,y3,z3;
+    for (step = NUM_I/2; step > 0; step /=2) {
+        for (i=step; i< NUM_I; i += step) {
+            for (j=step; j < NUM_J; j += step) {
                 
                 tmesh_get_pt(tmesh, i-step,j-step, &x0,&y0,&z0);
                 tmesh_get_pt(tmesh, i+step,j-step, &x1,&y1,&z1);
                 tmesh_get_pt(tmesh, i+step,j+step, &x2,&y2,&z2);
                 tmesh_get_pt(tmesh, i-step,j+step, &x3,&y3,&z3);
                 
-                double nx,ny,nz;
+                
                 tmesh_get_pt(tmesh, i,j, &nx,&ny,&nz);
-                ny = (y0+y1+y2+y3)/4.0 + randF(-2, 2);
-                nx = (i-(double)NUM_I/2)/2.0;
-                nz = (j-(double)NUM_J/2)/2.0;
-                printf("Assigning pt %lu %lu to %f %f %f\n", i,j, nx, ny, nz);
+                ny = (y0+y1+y2+y3)/4.0 + randF(-2.0, 2.0);
+                nx = (i-(double)NUM_I/2.0)/2.0;
+                nz = (j-(double)NUM_J/2.0)/2.0;
+                // printf("Assigning pt %lu %lu to %f %f %f\n", i,j, nx, ny, nz);
                 tmesh_set_pt(tmesh, i,j, nx,ny,nz);
             
-                tmesh_set_color(tmesh, i,j, 0,1,0);
+                tmesh_set_color(tmesh, i,j, 0.0,1.0,0.0);
             }
         }
-        size_t hs = step/2;
-        for (size_t i=hs; i< NUM_I; i += step) {
-            for (size_t j=hs; j < NUM_J; j += step) {
-                double x0,y0,z0;
-                double x1,y1,z1;
-                double x2,y2,z2;
-                double x3,y3,z3;
+        hs = step/2;
+        for (i=hs; i< NUM_I; i += step) {
+            for (j=hs; j < NUM_J; j += step) {
                 
                 tmesh_get_pt(tmesh, i-hs,j-hs, &x0,&y0,&z0);
                 tmesh_get_pt(tmesh, i+hs,j-hs, &x1,&y1,&z1);
                 tmesh_get_pt(tmesh, i+hs,j+hs, &x2,&y2,&z2);
                 tmesh_get_pt(tmesh, i-hs,j+hs, &x3,&y3,&z3);
                 
-                double nx,ny,nz;
                 tmesh_get_pt(tmesh, i,j, &nx,&ny,&nz);
-                ny = (y0+y1+y2+y3)/4.0 + randF(-2,2);
-                nx = (i-(double)NUM_I/2)/2.0;
-                nz = (j-(double)NUM_J/2)/2.0;
-                printf("Assigning pt %lu %lu to %f %f %f\n", i,j, nx, ny, nz);
+                ny = (y0+y1+y2+y3)/4.0 + randF(-2.0,2.0);
+                nx = (i-(double)NUM_I/2.0)/2.0;
+                nz = (j-(double)NUM_J/2.0)/2.0;
+                // printf("Assigning pt %lu %lu to %f %f %f\n", i,j, nx, ny, nz);
                 tmesh_set_pt(tmesh, i,j, nx,ny,nz);
             
-                tmesh_set_color(tmesh, i,j, 0,1,0);
+                tmesh_set_color(tmesh, i,j, 0.0,1.0,0.0);
             }
         }
 
     }
 }
 
-void doFrame(int fNum, scene_info_t *scene, tri_mesh_t *tmesh) {
+void doFrame(size_t fNum, scene_info_t *scene, tri_mesh_t *tmesh) {
     RtInt on = 1;
+    char buffer[256];
+    RtString on_string = "on";
+    RtInt samples = 2;
+    RtPoint lightPos = {40,80,40};
+
     RiFrameBegin(fNum);
 
-    char buffer[256];
-    sprintf(buffer, "images/%s%05d.tif", scene->fprefix, fNum);
+    sprintf(buffer, "images/%s%05lu.tif", scene->fprefix, fNum);
     RiDisplay(buffer,(char*)"file",(char*)"rgba",RI_NULL);
   
     RiFormat(800, 600,  1.25);
@@ -211,10 +210,8 @@ void doFrame(int fNum, scene_info_t *scene, tri_mesh_t *tmesh) {
                  "int specular", (RtPointer)&on,
                  "int photon", (RtPointer)&on,
                  RI_NULL );
-    RtString on_string = "on";
-    RtInt samples = 2;
     RiAttribute( "light", (RtToken)"shadows", (RtPointer)&on_string, (RtToken)"samples", (RtPointer)&samples, RI_NULL );
-    RtPoint lightPos = {40,80,40};
+
     RiAttribute((RtToken)"light", "string shadow", (RtPointer)"on", RI_NULL);
     RiLightSource("distantlight", (RtToken)"from", (RtPointer)lightPos, RI_NULL);
     
@@ -229,20 +226,29 @@ void doFrame(int fNum, scene_info_t *scene, tri_mesh_t *tmesh) {
 }
 
 int main(int argc, char *argv[]) {
+
+    const size_t NUM_FRAMES = 20;
+    RtInt md = 4;
+    scene_info_t scene;
+    double rad = 40.0;
+    double t = 0.0;
+    double dt = 2.0*PI/(NUM_FRAMES-1);
+    tri_mesh_t tmesh;
+    size_t fnum;
+
     if (argc<2) {
         printf("No output file name prefixgiven.\n");
         printf("Use:\n\t%s output_prefix\n\n", argv[0]);
         exit(1);
     }
 
-    const size_t NUM_FRAMES = 20;
+
 
     RiBegin(RI_NULL);
-    RtInt md = 4;
+
     RiOption("trace", "maxdepth", &md, RI_NULL);
     RiSides(2);
 
-    scene_info_t scene;
 
     scene.cam.location[0] = 50;
     scene.cam.location[1] = 50;
@@ -257,15 +263,11 @@ int main(int argc, char *argv[]) {
 
     /* size_t cur_frame = 0; */
 
-    double rad = 40.0;
-    double t = 0.0;
-    double dt = 2.0*PI/(NUM_FRAMES-1);
-    tri_mesh_t tmesh;
 
     tmesh_alloc(&tmesh, 256,256);
     gen_terrain(&tmesh);
     
-    for (size_t fnum = 0; fnum < NUM_FRAMES; ++fnum) {
+    for (fnum = 0; fnum < NUM_FRAMES; ++fnum) {
         scene.cam.location[0] = rad * sin(t);
         scene.cam.location[2] = rad * cos(t);
         t += dt;
