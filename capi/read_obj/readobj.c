@@ -71,6 +71,23 @@ void free_object(wave_object_t *obj) {
         obj->num_texts = 0;
     }
     if (obj->num_faces>0  &&  obj->faces!= NULL) {
+        for (size_t i=0;i<obj->num_faces; ++i) {
+            if (obj->faces[i].size>0) {
+                if (obj->faces[i].verts!=NULL) {
+                    free(obj->faces[i].verts);
+                    obj->faces[i].verts = NULL;
+                }
+                if (obj->faces[i].norms!=NULL) {
+                    free(obj->faces[i].norms);
+                    obj->faces[i].norms = NULL;
+                }
+                if (obj->faces[i].texts!=NULL) {
+                    free(obj->faces[i].texts);
+                    obj->faces[i].texts = NULL;
+                }
+
+            }
+        }
         free(obj->faces);
         obj->faces = NULL;
         obj->num_texts = 0;
@@ -187,7 +204,8 @@ void preprocess(FILE* inf, wave_object_t *obj) {
     rewind(inf);
 
     while (!feof(inf)) {
-        fgets(in_buffer, 512, inf);
+        char *fgs = fgets(in_buffer, 512, inf);
+        if (fgs == NULL) continue;
         blen = strlen(in_buffer);
         in_buffer[blen-1] = '\0';
         --blen;
@@ -195,6 +213,7 @@ void preprocess(FILE* inf, wave_object_t *obj) {
             in_buffer[blen-1] ='\0';
             --blen;
         }
+        if (blen == 0) continue;
         enum obj_entry_type obj_type = get_entry_type(in_buffer);
 
         switch (obj_type) {
@@ -258,8 +277,9 @@ void read_data(FILE *inf, wave_object_t *obj) {
     size_t blen = 0;
 
         
-    while (!feof(inf)) {
-        fgets(in_buffer, 512, inf);
+    do {
+        char *fgs = fgets(in_buffer, 512, inf);
+        if (fgs == NULL) continue;
         blen = strlen(in_buffer);
         in_buffer[blen-1] = '\0';
         --blen;
@@ -298,7 +318,6 @@ void read_data(FILE *inf, wave_object_t *obj) {
             in_buffer[j] = '\0';
             zt = atof(in_buffer+i);
             in_buffer[j] = tmp;
-            printf("Read vertex %zu, which is: %f %f %f\n", cur_vert,xt,yt,zt);
 
             obj->verts[cur_vert].x = xt;
             obj->verts[cur_vert].y = yt;
@@ -335,8 +354,6 @@ void read_data(FILE *inf, wave_object_t *obj) {
             in_buffer[j] = '\0';
             kt = atof(in_buffer+i);
             in_buffer[j] = tmp;
-            printf("Read normal %zu, which is: %f %f %f\n", cur_norm,it,jt,kt);
-
             obj->norms[cur_norm].i = it;
             obj->norms[cur_norm].j = jt;
             obj->norms[cur_norm].k = kt;
@@ -365,8 +382,6 @@ void read_data(FILE *inf, wave_object_t *obj) {
             tt = atof(in_buffer+i);
             in_buffer[j] = tmp;
 
-            printf("Read texture coordinate %zu, which is: %f %f\n", cur_text,st,tt);
-
             obj->text_coords[cur_text].s = st;
             obj->text_coords[cur_text].t = tt;
 
@@ -378,32 +393,49 @@ void read_data(FILE *inf, wave_object_t *obj) {
             // Find the 'f' and skip it and the white space after it
             i = strchr(in_buffer, 'f')  - in_buffer + 1;
             while (isspace(in_buffer[i])) ++i;
+
+            int end = 0;
+            size_t pt_cnt = 0;
             
-            j = i;
-            while (!isspace(in_buffer[j])) ++j;
-            tmp = in_buffer[j];
-            in_buffer[j] = '\0';
-            it = atof(in_buffer+i);
-            in_buffer[j] = tmp;
+            // Assume no faces will ever have more than 20 points
+            char *pts[20];
+            size_t cur_pt = 0;
+            int in_word = 0;
+            while (in_buffer[i] != '\0') {
+                if (!isspace(in_buffer[i]) && in_word == 1) {
+                    in_word = 1;
+                }
+                if (!isspace(in_buffer[i]) && in_word == 0) {
+                    pts[cur_pt++] = in_buffer+i;
+                    in_word = 1;
+                    pt_cnt++;
+                }
+                if (isspace(in_buffer[i]) && in_word == 1) {
+                    in_word = 0;
+                    in_buffer[i] = '\0';
+                }
+                if (isspace(in_buffer[i]) && in_word == 0) {
+                    in_word = 0;
+                    in_buffer[i] = '\0';
+                }
+                ++i;
+            }
+            obj->faces[cur_face].size = pt_cnt;
+            obj->faces[cur_face].verts = malloc(sizeof(size_t)*pt_cnt);
+            obj->faces[cur_face].norms = malloc(sizeof(size_t)*pt_cnt);
+            obj->faces[cur_face].texts = malloc(sizeof(size_t)*pt_cnt);
 
-            i = j;
-            while (isspace(in_buffer[i])) ++i;
-            j = i;
-            while (!isspace(in_buffer[j])) ++j;
-            tmp = in_buffer[j];
-            in_buffer[j] = '\0';
-            jt = atof(in_buffer+i);
-            in_buffer[j] = tmp;
+            for (j=0; j<pt_cnt; ++j) {
 
-            i = j;
-            while (isspace(in_buffer[i])) ++i;
-            j = i;
-            while (!isspace(in_buffer[j])) ++j;
-            tmp = in_buffer[j];
-            in_buffer[j] = '\0';
-            kt = atof(in_buffer+i);
-            in_buffer[j] = tmp;
-            printf("Read normal %zu, which is: %f %f %f\n", cur_norm,it,jt,kt);
+                char *end_ptr;
+                size_t vert = strtoul(pts[j], &end_ptr, 10);
+                size_t text = strtoul(end_ptr+1, &end_ptr, 10);
+                size_t norm = strtoul(end_ptr+1, &end_ptr, 10);
+                obj->faces[cur_face].verts[j] = vert;
+                obj->faces[cur_face].norms[j] = norm;
+                obj->faces[cur_face].texts[j] = text;
+            }
+            ++cur_face;
             
             break;
 
@@ -415,7 +447,7 @@ void read_data(FILE *inf, wave_object_t *obj) {
         }
             
         /* printf("\"%s\" is a %s.\n", in_buffer, type_to_string(get_entry_type(in_buffer))); */
-    }
+    } while (!feof(inf));
     
 }
 void read_object(FILE *inf, wave_object_t *obj) {
