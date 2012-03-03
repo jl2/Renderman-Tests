@@ -2,6 +2,9 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdlib.h>
+#include <math.h>
+
+#include "ri.h"
 
 enum obj_entry_type {vertex, normal, text_coord, face, object, comment, bad};
 
@@ -34,12 +37,83 @@ typedef struct wave_object_s {
     size_t num_texts;
     size_t num_norms;
     size_t num_faces;
+    size_t largest_face;
     vertex_t *verts;
     text_coord_t *text_coords;
     normal_t *norms;
     face_t *faces;
     char *name;
 } wave_object_t;
+typedef struct camera_s {
+    RtPoint location;
+    RtPoint look_at;
+    double roll;
+} camera_t;
+
+typedef struct scene_info_s {
+    camera_t cam;
+    char *fprefix;
+} scene_info_t;
+
+
+const double PI = 3.141592654;
+/*
+ * AimZ(): rotate the world so the direction vector points in
+ *  positive z by rotating about the y axis, then x. The cosine
+ *  of each rotation is given by components of the normalized
+ *  direction vector. Before the y rotation the direction vector
+ *  might be in negative z, but not afterward.
+ */
+void AimZ(RtPoint direction)
+{
+    double xzlen, yzlen, yrot, xrot;
+
+    if (direction[0]==0 && direction[1]==0 && direction[2]==0)
+        return;
+
+    /*
+     * The initial rotation about the y axis is given by the projection of
+     * the direction vector onto the x,z plane: the x and z components
+     * of the direction.
+     */
+    xzlen = sqrt(direction[0]*direction[0]+direction[2]*direction[2]);
+    if (xzlen == 0)
+        yrot = (direction[1] < 0) ? 180.0 : 0.0;
+    else
+        yrot = 180.0*acos(direction[2]/xzlen)/PI;
+
+    /*
+     * The second rotation, about the x axis, is given by the projection on
+     * the y,z plane of the y-rotated direction vector: the original y
+     * component, and the rotated x,z vector from above.
+     */
+    yzlen = sqrt(direction[1]*direction[1]+xzlen*xzlen);
+    xrot = 180*acos(xzlen/yzlen)/PI; /* yzlen should never be 0 */
+
+    if (direction[1] > 0)
+        RiRotate(xrot, 1.0, 0.0, 0.0);
+    else
+        RiRotate(-xrot, 1.0, 0.0, 0.0);
+
+    /* The last rotation declared gets performed first */
+    if (direction[0] > 0)
+        RiRotate(-yrot, 0.0, 1.0, 0.0);
+    else
+        RiRotate(yrot, 0.0, 1.0, 0.0);
+}
+
+void PlaceCamera(camera_t *cam)
+{
+    RtPoint direction;
+    RiRotate(-cam->roll, 0.0, 0.0, 1.0);
+    direction[0] = cam->look_at[0]-cam->location[0];
+    direction[1] = cam->look_at[1]-cam->location[1];
+    direction[2] = cam->look_at[2]-cam->location[2];
+    AimZ(direction);
+    RiTranslate(-cam->location[0], -cam->location[1], -cam->location[2]);
+}
+
+void doFrame(size_t fNum, scene_info_t *scene, wave_object_t *obj);
 
 void init_object(wave_object_t *obj) {
     obj->num_verts = 0;
@@ -52,6 +126,7 @@ void init_object(wave_object_t *obj) {
     obj->norms = NULL;
     obj->faces = NULL;
     obj->name = NULL;
+    obj->largest_face = 0;
 }
 
 void free_object(wave_object_t *obj) {
@@ -431,9 +506,15 @@ void read_data(FILE *inf, wave_object_t *obj) {
                 size_t vert = strtoul(pts[j], &end_ptr, 10);
                 size_t text = strtoul(end_ptr+1, &end_ptr, 10);
                 size_t norm = strtoul(end_ptr+1, &end_ptr, 10);
+                if (vert) vert -= 1;
+                if (norm) norm -= 1;
+                if (text) text -= 1;
                 obj->faces[cur_face].verts[j] = vert;
                 obj->faces[cur_face].norms[j] = norm;
                 obj->faces[cur_face].texts[j] = text;
+            }
+            if (pt_cnt>obj->largest_face) {
+                obj->largest_face = pt_cnt;
             }
             ++cur_face;
             
@@ -450,30 +531,150 @@ void read_data(FILE *inf, wave_object_t *obj) {
     } while (!feof(inf));
     
 }
+
+void show_object(wave_object_t *obj) {
+    /* RiSphere(20, -20,20, 360, RI_NULL); */
+    RtPoint *verts = malloc(sizeof(RtPoint)*(obj->largest_face));
+    RtPoint *norms = malloc(sizeof(RtPoint)*(obj->largest_face));
+    RtInt *num_pts = malloc(sizeof(RtInt)*(obj->num_faces));
+
+    
+    int hasNorms = 1;
+    size_t vn;
+    size_t nn;
+    
+    for (size_t i = 0; i< obj->num_faces; ++i) {
+        face_t f = obj->faces[i];
+        num_pts[i] = f.size;
+
+        for (size_t j = 0; j< f.size; ++j) {
+            
+            vn = f.verts[j];
+            printf("Vert: %zu\n", vn);
+            verts[j][0] = (RtFloat)(obj->verts[vn].x);
+            verts[j][1] = (RtFloat)(obj->verts[vn].y);
+            verts[j][2] = (RtFloat)(obj->verts[vn].z);
+            
+            if (f.norms != NULL) {
+                nn = f.norms[j];
+                printf("Norm: %zu\n", nn);
+                norms[j][0] = (RtFloat)(obj->norms[nn].i);
+                norms[j][1] = (RtFloat)(obj->norms[nn].j);
+                norms[j][2] = (RtFloat)(obj->norms[nn].k);
+            } else {
+                hasNorms = 0;
+            }
+        }
+        
+        if (hasNorms) {
+            printf("Polygon size: %zu\n", f.size);
+            RiPolygon(f.size, "P", (RtPointer)verts, "N", (RtPointer)norms, RI_NULL);
+        } else {
+            RiPolygon(f.size, "P", (RtPointer)verts, RI_NULL);
+        }
+    }
+    free(verts);
+    free(norms);
+}
+
 void read_object(FILE *inf, wave_object_t *obj) {
     preprocess(inf, obj);
     read_data(inf, obj);
 }
 
+void doFrame(size_t fNum, scene_info_t *scene, wave_object_t *obj) {
+    RtInt on = 1;
+    char buffer[256];
+    RtString on_string = "on";
+    RtInt samples = 2;
+    RtPoint lightPos = {40,80,40};
+
+    RiFrameBegin(fNum);
+
+    sprintf(buffer, "images/%s%05lu.tif", scene->fprefix, fNum);
+    RiDisplay(buffer,(char*)"file",(char*)"rgba",RI_NULL);
+  
+    RiFormat(800, 600,  1.25);
+
+
+    RiProjection((char*)"perspective",RI_NULL);
+    PlaceCamera(&scene->cam);
+
+    /* RiAttribute("visibility", "int trace", &on, RI_NULL); */
+    RiAttribute( "visibility",
+                 "int camera", (RtPointer)&on,
+                 "int transmission", (RtPointer)&on,
+                 "int diffuse", (RtPointer)&on,
+                 "int specular", (RtPointer)&on,
+                 "int photon", (RtPointer)&on,
+                 RI_NULL );
+    RiAttribute( "light", (RtToken)"shadows", (RtPointer)&on_string, (RtToken)"samples", (RtPointer)&samples, RI_NULL );
+
+    RiAttribute((RtToken)"light", "string shadow", (RtPointer)"on", RI_NULL);
+    RiLightSource("distantlight", (RtToken)"from", (RtPointer)lightPos, RI_NULL);
+    
+    RiWorldBegin();
+  
+    RiSurface((char*)"matte", RI_NULL);
+    show_object(obj);
+
+    RiWorldEnd();
+    RiFrameEnd();
+}
+
 int main(int argc, char *argv[]) {
     FILE *inf;
     wave_object_t obj;
+    const size_t NUM_FRAMES = 20;
+    RtInt md = 4;
+    scene_info_t scene;
+    double rad = 20;
+    double t = 0.0;
+    double dt = 2.0*PI/(NUM_FRAMES-1);
+    size_t fnum;
 
-    if (argc <2) {
-        printf("No input file name given!\n");
+    if (argc <3) {
+        printf("No input and output file names given!\n");
         return 1;
     }
+    
     inf = fopen(argv[1], "rt");
     if (inf == NULL) {
         printf("Could not open \"%s\"\n", argv[1]);
         return 1;
+
     }
     init_object(&obj);
     read_object(inf, &obj);
     
     
-    printf("Object file has:\n  %zu vertices\n  %zu normals\n  %zu texture coordinates\n  %zu faces\n  %d objects",
+    printf("Object file has:\n  %zu vertices\n  %zu normals\n  %zu texture coordinates\n  %zu faces\n  %d objects\n",
            obj.num_verts, obj.num_norms, obj.num_texts, obj.num_faces, 1);
+
+    RiBegin(RI_NULL);
+    RiOption("trace", "maxdepth", &md, RI_NULL);
+    RiSides(2);
+
+
+    scene.cam.location[0] = rad;
+    scene.cam.location[1] = rad;
+    scene.cam.location[2] = rad;
+
+    scene.cam.look_at[0]= 0.0;
+    scene.cam.look_at[1]= 0.0;
+    scene.cam.look_at[2]= 0.0;
+    scene.cam.roll = 0.0;
+    
+    scene.fprefix = argv[2];
+
+    for (fnum = 0; fnum < NUM_FRAMES; ++fnum) {
+        scene.cam.location[0] = rad * sin(t);
+        scene.cam.location[2] = rad * cos(t);
+        t += dt;
+        printf("Rendering frame %lu\n", fnum);
+        doFrame(fnum, &scene, &obj);
+    }
+    RiEnd();
 
     free_object(&obj);
 
