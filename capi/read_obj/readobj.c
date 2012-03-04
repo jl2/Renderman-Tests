@@ -8,22 +8,22 @@
 
 enum obj_entry_type {vertex, normal, text_coord, face, object, comment, bad};
 
-typedef struct vertex_s {
-    double x;
-    double y;
-    double z;
-} vertex_t;
+/* typedef struct vertex_s { */
+/*     double x; */
+/*     double y; */
+/*     double z; */
+/* } vertex_t; */
 
 typedef struct text_coord_s {
     double s;
     double t;
 } text_coord_t;
 
-typedef struct normal_s {
-    double i;
-    double j;
-    double k;
-} normal_t;
+/* typedef struct normal_s { */
+/*     double i; */
+/*     double j; */
+/*     double k; */
+/* } normal_t; */
 
 typedef struct face_s {
     size_t size;
@@ -38,12 +38,14 @@ typedef struct wave_object_s {
     size_t num_norms;
     size_t num_faces;
     size_t largest_face;
-    vertex_t *verts;
+    RtPoint *verts;
     text_coord_t *text_coords;
-    normal_t *norms;
+    RtPoint *norms;
     face_t *faces;
     char *name;
 } wave_object_t;
+
+
 typedef struct camera_s {
     RtPoint location;
     RtPoint look_at;
@@ -311,14 +313,12 @@ void preprocess(FILE* inf, wave_object_t *obj) {
         default:
             break;
         }
-            
-        /* printf("\"%s\" is a %s.\n", in_buffer, type_to_string(get_entry_type(in_buffer))); */
     }
     obj->num_verts = nv;
-    obj->verts = malloc(sizeof(vertex_t) * nv);
+    obj->verts = malloc(sizeof(RtPoint) * nv);
     
     obj->num_norms = nn;
-    obj->norms = malloc(sizeof(normal_t) * nn);
+    obj->norms = malloc(sizeof(RtPoint) * nn);
     
     obj->num_texts = nt;
     obj->text_coords = malloc(sizeof(text_coord_t) * nt);
@@ -331,9 +331,6 @@ void preprocess(FILE* inf, wave_object_t *obj) {
 }
 
 void read_data(FILE *inf, wave_object_t *obj) {
-    // Go to the beginnning
-    rewind(inf);
-
     double xt, yt, zt;
     double it, jt, kt;
     double st, tt;
@@ -350,10 +347,30 @@ void read_data(FILE *inf, wave_object_t *obj) {
     size_t cur_face = 0;
     char in_buffer[512] = "";
     size_t blen = 0;
+    char *fgs = NULL;
+    enum obj_entry_type obj_type;
+    int end = 0;
+    size_t pt_cnt = 0;
 
-        
+    char *end_ptr;
+    size_t vert;
+    size_t text;
+    size_t norm;
+            
+    // Assume no faces will ever have more than 20 points
+    char *pts[20];
+    size_t cur_pt = 0;
+    int in_word = 0;
+
+    // Save original file positon
+    fpos_t original_pos;
+    fgetpos(inf, &original_pos);
+
+    // Go to the beginnning
+    rewind(inf);
+
     do {
-        char *fgs = fgets(in_buffer, 512, inf);
+        fgs = fgets(in_buffer, 512, inf);
         if (fgs == NULL) continue;
         blen = strlen(in_buffer);
         in_buffer[blen-1] = '\0';
@@ -362,7 +379,7 @@ void read_data(FILE *inf, wave_object_t *obj) {
             in_buffer[blen-1] ='\0';
             --blen;
         }
-        enum obj_entry_type obj_type = get_entry_type(in_buffer);
+        obj_type = get_entry_type(in_buffer);
 
         switch (obj_type) {
         case vertex:
@@ -394,9 +411,9 @@ void read_data(FILE *inf, wave_object_t *obj) {
             zt = atof(in_buffer+i);
             in_buffer[j] = tmp;
 
-            obj->verts[cur_vert].x = xt;
-            obj->verts[cur_vert].y = yt;
-            obj->verts[cur_vert].z = zt;
+            obj->verts[cur_vert][0] = (RtFloat)xt;
+            obj->verts[cur_vert][1] = (RtFloat)yt;
+            obj->verts[cur_vert][2] = (RtFloat)zt;
             
             ++cur_vert;
             break;
@@ -429,9 +446,9 @@ void read_data(FILE *inf, wave_object_t *obj) {
             in_buffer[j] = '\0';
             kt = atof(in_buffer+i);
             in_buffer[j] = tmp;
-            obj->norms[cur_norm].i = it;
-            obj->norms[cur_norm].j = jt;
-            obj->norms[cur_norm].k = kt;
+            obj->norms[cur_norm][0] = it;
+            obj->norms[cur_norm][1] = jt;
+            obj->norms[cur_norm][2] = kt;
 
             ++cur_norm;
             
@@ -469,13 +486,11 @@ void read_data(FILE *inf, wave_object_t *obj) {
             i = strchr(in_buffer, 'f')  - in_buffer + 1;
             while (isspace(in_buffer[i])) ++i;
 
-            int end = 0;
-            size_t pt_cnt = 0;
+            end = 0;
+            pt_cnt = 0;
             
-            // Assume no faces will ever have more than 20 points
-            char *pts[20];
-            size_t cur_pt = 0;
-            int in_word = 0;
+            cur_pt = 0;
+            in_word = 0;
             while (in_buffer[i] != '\0') {
                 if (!isspace(in_buffer[i]) && in_word == 1) {
                     in_word = 1;
@@ -501,11 +516,9 @@ void read_data(FILE *inf, wave_object_t *obj) {
             obj->faces[cur_face].texts = malloc(sizeof(size_t)*pt_cnt);
 
             for (j=0; j<pt_cnt; ++j) {
-
-                char *end_ptr;
-                size_t vert = strtoul(pts[j], &end_ptr, 10);
-                size_t text = strtoul(end_ptr+1, &end_ptr, 10);
-                size_t norm = strtoul(end_ptr+1, &end_ptr, 10);
+                vert = strtoul(pts[j], &end_ptr, 10);
+                text = strtoul(end_ptr+1, &end_ptr, 10);
+                norm = strtoul(end_ptr+1, &end_ptr, 10);
                 if (vert) vert -= 1;
                 if (norm) norm -= 1;
                 if (text) text -= 1;
@@ -529,52 +542,48 @@ void read_data(FILE *inf, wave_object_t *obj) {
             
         /* printf("\"%s\" is a %s.\n", in_buffer, type_to_string(get_entry_type(in_buffer))); */
     } while (!feof(inf));
-    
+
+    // Return to original position
+    fsetpos(inf, &original_pos);
 }
 
 void show_object(wave_object_t *obj) {
     /* RiSphere(20, -20,20, 360, RI_NULL); */
     RtPoint *verts = malloc(sizeof(RtPoint)*(obj->largest_face));
-    RtPoint *norms = malloc(sizeof(RtPoint)*(obj->largest_face));
-    RtInt *num_pts = malloc(sizeof(RtInt)*(obj->num_faces));
-
+    /* RtPoint *norms = malloc(sizeof(RtPoint)*(obj->largest_face)); */
+    RtInt *nverts = malloc(sizeof(RtInt)*(obj->num_faces));
     
     int hasNorms = 1;
     size_t vn;
     size_t nn;
+    size_t total_pts = 0;
+    size_t i,j;
+    face_t f;
+    RtInt *polys;
+    size_t cur_off;
     
-    for (size_t i = 0; i< obj->num_faces; ++i) {
-        face_t f = obj->faces[i];
-        num_pts[i] = f.size;
-
-        for (size_t j = 0; j< f.size; ++j) {
-            
-            vn = f.verts[j];
-            printf("Vert: %zu\n", vn);
-            verts[j][0] = (RtFloat)(obj->verts[vn].x);
-            verts[j][1] = (RtFloat)(obj->verts[vn].y);
-            verts[j][2] = (RtFloat)(obj->verts[vn].z);
-            
-            if (f.norms != NULL) {
-                nn = f.norms[j];
-                printf("Norm: %zu\n", nn);
-                norms[j][0] = (RtFloat)(obj->norms[nn].i);
-                norms[j][1] = (RtFloat)(obj->norms[nn].j);
-                norms[j][2] = (RtFloat)(obj->norms[nn].k);
-            } else {
-                hasNorms = 0;
-            }
-        }
-        
-        if (hasNorms) {
-            printf("Polygon size: %zu\n", f.size);
-            RiPolygon(f.size, "P", (RtPointer)verts, "N", (RtPointer)norms, RI_NULL);
-        } else {
-            RiPolygon(f.size, "P", (RtPointer)verts, RI_NULL);
+    for (i = 0; i< obj->num_faces; ++i) {
+        f = obj->faces[i];
+        nverts[i] = f.size;
+        total_pts += f.size;
+    }
+    polys = malloc(sizeof(RtInt)*total_pts);
+    cur_off = 0;
+    
+    for (i = 0; i< obj->num_faces; ++i) {
+        f = obj->faces[i];
+        for (j = 0; j< f.size; ++j) {
+            polys[cur_off++] = f.verts[j];
         }
     }
+    printf("cur_off = %zu, obj->num_faces = %zu, total_pts = %zu\n", cur_off, obj->num_faces, total_pts);
+    RiPointsPolygons(obj->num_faces,
+                     nverts,
+                     polys,
+                     "P", obj->verts, RI_NULL);
+    free(polys);
+    free(nverts);
     free(verts);
-    free(norms);
 }
 
 void read_object(FILE *inf, wave_object_t *obj) {
@@ -628,7 +637,7 @@ int main(int argc, char *argv[]) {
     const size_t NUM_FRAMES = 20;
     RtInt md = 4;
     scene_info_t scene;
-    double rad = 20;
+    double rad = 500;
     double t = 0.0;
     double dt = 2.0*PI/(NUM_FRAMES-1);
     size_t fnum;
