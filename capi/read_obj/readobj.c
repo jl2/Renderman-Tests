@@ -2,25 +2,16 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdlib.h>
+#include <math.h>
+
+#include "ri.h"
 
 enum obj_entry_type {vertex, normal, text_coord, face, object, comment, bad};
-
-typedef struct vertex_s {
-    double x;
-    double y;
-    double z;
-} vertex_t;
 
 typedef struct text_coord_s {
     double s;
     double t;
 } text_coord_t;
-
-typedef struct normal_s {
-    double i;
-    double j;
-    double k;
-} normal_t;
 
 typedef struct face_s {
     size_t size;
@@ -34,12 +25,85 @@ typedef struct wave_object_s {
     size_t num_texts;
     size_t num_norms;
     size_t num_faces;
-    vertex_t *verts;
+    size_t largest_face;
+    RtPoint *verts;
     text_coord_t *text_coords;
-    normal_t *norms;
+    RtPoint *norms;
     face_t *faces;
     char *name;
 } wave_object_t;
+
+
+typedef struct camera_s {
+    RtPoint location;
+    RtPoint look_at;
+    double roll;
+} camera_t;
+
+typedef struct scene_info_s {
+    camera_t cam;
+    char *fprefix;
+} scene_info_t;
+
+
+const double PI = 3.141592654;
+/*
+ * AimZ(): rotate the world so the direction vector points in
+ *  positive z by rotating about the y axis, then x. The cosine
+ *  of each rotation is given by components of the normalized
+ *  direction vector. Before the y rotation the direction vector
+ *  might be in negative z, but not afterward.
+ */
+void AimZ(RtPoint direction)
+{
+    double xzlen, yzlen, yrot, xrot;
+
+    if (direction[0]==0 && direction[1]==0 && direction[2]==0)
+        return;
+
+    /*
+     * The initial rotation about the y axis is given by the projection of
+     * the direction vector onto the x,z plane: the x and z components
+     * of the direction.
+     */
+    xzlen = sqrt(direction[0]*direction[0]+direction[2]*direction[2]);
+    if (xzlen == 0)
+        yrot = (direction[1] < 0) ? 180.0 : 0.0;
+    else
+        yrot = 180.0*acos(direction[2]/xzlen)/PI;
+
+    /*
+     * The second rotation, about the x axis, is given by the projection on
+     * the y,z plane of the y-rotated direction vector: the original y
+     * component, and the rotated x,z vector from above.
+     */
+    yzlen = sqrt(direction[1]*direction[1]+xzlen*xzlen);
+    xrot = 180*acos(xzlen/yzlen)/PI; /* yzlen should never be 0 */
+
+    if (direction[1] > 0)
+        RiRotate(xrot, 1.0, 0.0, 0.0);
+    else
+        RiRotate(-xrot, 1.0, 0.0, 0.0);
+
+    /* The last rotation declared gets performed first */
+    if (direction[0] > 0)
+        RiRotate(-yrot, 0.0, 1.0, 0.0);
+    else
+        RiRotate(yrot, 0.0, 1.0, 0.0);
+}
+
+void PlaceCamera(camera_t *cam)
+{
+    RtPoint direction;
+    RiRotate(-cam->roll, 0.0, 0.0, 1.0);
+    direction[0] = cam->look_at[0]-cam->location[0];
+    direction[1] = cam->look_at[1]-cam->location[1];
+    direction[2] = cam->look_at[2]-cam->location[2];
+    AimZ(direction);
+    RiTranslate(-cam->location[0], -cam->location[1], -cam->location[2]);
+}
+
+void doFrame(size_t fNum, scene_info_t *scene, wave_object_t *obj);
 
 void init_object(wave_object_t *obj) {
     obj->num_verts = 0;
@@ -52,6 +116,7 @@ void init_object(wave_object_t *obj) {
     obj->norms = NULL;
     obj->faces = NULL;
     obj->name = NULL;
+    obj->largest_face = 0;
 }
 
 void free_object(wave_object_t *obj) {
@@ -117,8 +182,6 @@ const char *type_to_string(enum obj_entry_type ot) {
         return "comment";
     case object:
         return "object";
-    /* default: */
-    /*     return "unknown type"; */
     }
 }
 
@@ -236,14 +299,12 @@ void preprocess(FILE* inf, wave_object_t *obj) {
         default:
             break;
         }
-            
-        /* printf("\"%s\" is a %s.\n", in_buffer, type_to_string(get_entry_type(in_buffer))); */
     }
     obj->num_verts = nv;
-    obj->verts = malloc(sizeof(vertex_t) * nv);
+    obj->verts = malloc(sizeof(RtPoint) * nv);
     
     obj->num_norms = nn;
-    obj->norms = malloc(sizeof(normal_t) * nn);
+    obj->norms = malloc(sizeof(RtPoint) * nn);
     
     obj->num_texts = nt;
     obj->text_coords = malloc(sizeof(text_coord_t) * nt);
@@ -256,9 +317,6 @@ void preprocess(FILE* inf, wave_object_t *obj) {
 }
 
 void read_data(FILE *inf, wave_object_t *obj) {
-    // Go to the beginnning
-    rewind(inf);
-
     double xt, yt, zt;
     double it, jt, kt;
     double st, tt;
@@ -275,10 +333,33 @@ void read_data(FILE *inf, wave_object_t *obj) {
     size_t cur_face = 0;
     char in_buffer[512] = "";
     size_t blen = 0;
+    char *fgs = NULL;
+    enum obj_entry_type obj_type;
+    int end = 0;
+    size_t pt_cnt = 0;
 
-        
+    char *end_ptr;
+    size_t vert;
+    size_t text;
+    size_t norm;
+            
+    // Assume no faces will ever have more than 20 points
+    char *pts[20];
+    size_t cur_pt = 0;
+    int in_word = 0;
+    char *num_start;
+    char *num_end;
+    
+    
+    // Save original file positon
+    fpos_t original_pos;
+    fgetpos(inf, &original_pos);
+
+    // Go to the beginnning
+    rewind(inf);
+
     do {
-        char *fgs = fgets(in_buffer, 512, inf);
+        fgs = fgets(in_buffer, 512, inf);
         if (fgs == NULL) continue;
         blen = strlen(in_buffer);
         in_buffer[blen-1] = '\0';
@@ -287,76 +368,35 @@ void read_data(FILE *inf, wave_object_t *obj) {
             in_buffer[blen-1] ='\0';
             --blen;
         }
-        enum obj_entry_type obj_type = get_entry_type(in_buffer);
+        obj_type = get_entry_type(in_buffer);
 
         switch (obj_type) {
         case vertex:
             // Find the 'v' and skip it and the white space after it
-            i = strchr(in_buffer, 'v')  - in_buffer + 1;
-            while (isspace(in_buffer[i])) ++i;
-            j = i;
-            while (!isspace(in_buffer[j])) ++j;
-            tmp = in_buffer[j];
-            in_buffer[j] = '\0';
-            xt = atof(in_buffer+i);
-            in_buffer[j] = tmp;
+            num_start = strchr(in_buffer, 'v')+1;
 
-            i = j;
-            while (isspace(in_buffer[i])) ++i;
-            j = i;
-            while (!isspace(in_buffer[j])) ++j;
-            tmp = in_buffer[j];
-            in_buffer[j] = '\0';
-            yt = atof(in_buffer+i);
-            in_buffer[j] = tmp;
+            xt = strtod(num_start, &num_end);
+            yt = strtod(num_end, &num_end);
+            zt = strtod(num_end, &num_end);
 
-            i = j;
-            while (isspace(in_buffer[i])) ++i;
-            j = i;
-            while (!isspace(in_buffer[j])) ++j;
-            tmp = in_buffer[j];
-            in_buffer[j] = '\0';
-            zt = atof(in_buffer+i);
-            in_buffer[j] = tmp;
-
-            obj->verts[cur_vert].x = xt;
-            obj->verts[cur_vert].y = yt;
-            obj->verts[cur_vert].z = zt;
+            obj->verts[cur_vert][0] = (RtFloat)xt;
+            obj->verts[cur_vert][1] = (RtFloat)yt;
+            obj->verts[cur_vert][2] = (RtFloat)zt;
             
             ++cur_vert;
             break;
 
         case normal:
             // Find the 'n' and skip it and the white space after it
-            i = strchr(in_buffer, 'n')  - in_buffer + 1;
-            while (isspace(in_buffer[i])) ++i;
-            j = i;
-            while (!isspace(in_buffer[j])) ++j;
-            tmp = in_buffer[j];
-            in_buffer[j] = '\0';
-            it = atof(in_buffer+i);
-            in_buffer[j] = tmp;
+            num_start = strchr(in_buffer, 'n')+1;
 
-            i = j;
-            while (isspace(in_buffer[i])) ++i;
-            j = i;
-            while (!isspace(in_buffer[j])) ++j;
-            tmp = in_buffer[j];
-            in_buffer[j] = '\0';
-            jt = atof(in_buffer+i);
-            in_buffer[j] = tmp;
+            it = strtod(num_start, &num_end);
+            jt = strtod(num_end, &num_end);
+            kt = strtod(num_end, &num_end);
 
-            i = j;
-            while (isspace(in_buffer[i])) ++i;
-            j = i;
-            while (!isspace(in_buffer[j])) ++j;
-            tmp = in_buffer[j];
-            in_buffer[j] = '\0';
-            kt = atof(in_buffer+i);
-            in_buffer[j] = tmp;
-            obj->norms[cur_norm].i = it;
-            obj->norms[cur_norm].j = jt;
-            obj->norms[cur_norm].k = kt;
+            obj->norms[cur_norm][0] = it;
+            obj->norms[cur_norm][1] = jt;
+            obj->norms[cur_norm][2] = kt;
 
             ++cur_norm;
             
@@ -364,23 +404,10 @@ void read_data(FILE *inf, wave_object_t *obj) {
 
         case text_coord:
             // Find the "vt" and skip it and the white space after it
-            i = strchr(in_buffer, 'v')  - in_buffer + 2;
-            while (isspace(in_buffer[i])) ++i;
-            j = i;
-            while (!isspace(in_buffer[j])) ++j;
-            tmp = in_buffer[j];
-            in_buffer[j] = '\0';
-            st = atof(in_buffer+i);
-            in_buffer[j] = tmp;
+            num_start = strchr(in_buffer, 'v')+2;
 
-            i = j;
-            while (isspace(in_buffer[i])) ++i;
-            j = i;
-            while (!isspace(in_buffer[j])) ++j;
-            tmp = in_buffer[j];
-            in_buffer[j] = '\0';
-            tt = atof(in_buffer+i);
-            in_buffer[j] = tmp;
+            st = strtod(num_start, &num_end);
+            tt = strtod(num_end, &num_end);
 
             obj->text_coords[cur_text].s = st;
             obj->text_coords[cur_text].t = tt;
@@ -394,13 +421,11 @@ void read_data(FILE *inf, wave_object_t *obj) {
             i = strchr(in_buffer, 'f')  - in_buffer + 1;
             while (isspace(in_buffer[i])) ++i;
 
-            int end = 0;
-            size_t pt_cnt = 0;
+            end = 0;
+            pt_cnt = 0;
             
-            // Assume no faces will ever have more than 20 points
-            char *pts[20];
-            size_t cur_pt = 0;
-            int in_word = 0;
+            cur_pt = 0;
+            in_word = 0;
             while (in_buffer[i] != '\0') {
                 if (!isspace(in_buffer[i]) && in_word == 1) {
                     in_word = 1;
@@ -426,14 +451,18 @@ void read_data(FILE *inf, wave_object_t *obj) {
             obj->faces[cur_face].texts = malloc(sizeof(size_t)*pt_cnt);
 
             for (j=0; j<pt_cnt; ++j) {
-
-                char *end_ptr;
-                size_t vert = strtoul(pts[j], &end_ptr, 10);
-                size_t text = strtoul(end_ptr+1, &end_ptr, 10);
-                size_t norm = strtoul(end_ptr+1, &end_ptr, 10);
+                vert = strtoul(pts[j], &end_ptr, 10);
+                text = strtoul(end_ptr+1, &end_ptr, 10);
+                norm = strtoul(end_ptr+1, &end_ptr, 10);
+                if (vert) vert -= 1;
+                if (norm) norm -= 1;
+                if (text) text -= 1;
                 obj->faces[cur_face].verts[j] = vert;
                 obj->faces[cur_face].norms[j] = norm;
                 obj->faces[cur_face].texts[j] = text;
+            }
+            if (pt_cnt>obj->largest_face) {
+                obj->largest_face = pt_cnt;
             }
             ++cur_face;
             
@@ -446,34 +475,148 @@ void read_data(FILE *inf, wave_object_t *obj) {
             break;
         }
             
-        /* printf("\"%s\" is a %s.\n", in_buffer, type_to_string(get_entry_type(in_buffer))); */
     } while (!feof(inf));
-    
+
+    // Return to original position
+    fsetpos(inf, &original_pos);
 }
+
+void show_object(wave_object_t *obj) {
+    RtPoint *verts = malloc(sizeof(RtPoint)*(obj->largest_face));
+    RtInt *nverts = malloc(sizeof(RtInt)*(obj->num_faces));
+    
+    int hasNorms = 1;
+    size_t vn;
+    size_t nn;
+    size_t total_pts = 0;
+    size_t i,j;
+    face_t f;
+    RtInt *polys;
+    size_t cur_off;
+    
+    for (i = 0; i< obj->num_faces; ++i) {
+        f = obj->faces[i];
+        nverts[i] = f.size;
+        total_pts += f.size;
+    }
+    polys = malloc(sizeof(RtInt)*total_pts);
+    cur_off = 0;
+    
+    for (i = 0; i< obj->num_faces; ++i) {
+        f = obj->faces[i];
+        for (j = 0; j< f.size; ++j) {
+            polys[cur_off++] = f.verts[j];
+        }
+    }
+    printf("cur_off = %zu, obj->num_faces = %zu, total_pts = %zu\n", cur_off, obj->num_faces, total_pts);
+    RiPointsPolygons(obj->num_faces,
+                     nverts,
+                     polys,
+                     "P", obj->verts, RI_NULL);
+    free(polys);
+    free(nverts);
+    free(verts);
+}
+
 void read_object(FILE *inf, wave_object_t *obj) {
     preprocess(inf, obj);
     read_data(inf, obj);
 }
 
+void doFrame(size_t fNum, scene_info_t *scene, wave_object_t *obj) {
+    RtInt on = 1;
+    char buffer[256];
+    RtString on_string = "on";
+    RtInt samples = 2;
+    RtPoint lightPos = {40,80,40};
+
+    RiFrameBegin(fNum);
+    RtColor bgcolor = {0.2,0.8,0.2};
+    RiImager("background", "color background", bgcolor, RI_NULL);
+    sprintf(buffer, "images/%s%05lu.tif", scene->fprefix, fNum);
+    RiDisplay(buffer,(char*)"file",(char*)"rgba",RI_NULL);
+  
+    RiFormat(800, 600,  1.25);
+
+
+    RiProjection((char*)"perspective",RI_NULL);
+    PlaceCamera(&scene->cam);
+
+    /* RiAttribute("visibility", "int trace", &on, RI_NULL); */
+    RiAttribute( "visibility",
+                 "int camera", (RtPointer)&on,
+                 "int transmission", (RtPointer)&on,
+                 "int diffuse", (RtPointer)&on,
+                 "int specular", (RtPointer)&on,
+                 "int photon", (RtPointer)&on,
+                 RI_NULL );
+    RiAttribute( "light", (RtToken)"shadows", (RtPointer)&on_string, (RtToken)"samples", (RtPointer)&samples, RI_NULL );
+
+    RiAttribute((RtToken)"light", "string shadow", (RtPointer)"on", RI_NULL);
+    RiLightSource("distantlight", (RtToken)"from", (RtPointer)lightPos, RI_NULL);
+    
+    RiWorldBegin();
+  
+    RiSurface((char*)"matte", RI_NULL);
+    show_object(obj);
+
+    RiWorldEnd();
+    RiFrameEnd();
+}
+
 int main(int argc, char *argv[]) {
     FILE *inf;
     wave_object_t obj;
+    const size_t NUM_FRAMES = 360;
+    RtInt md = 4;
+    scene_info_t scene;
+    double rad = 20;
+    double t = 0.0;
+    double dt = 2.0*PI/(NUM_FRAMES-1);
+    size_t fnum;
 
-    if (argc <2) {
-        printf("No input file name given!\n");
+    if (argc <3) {
+        printf("No input and output file names given!\n");
         return 1;
     }
+    
     inf = fopen(argv[1], "rt");
     if (inf == NULL) {
         printf("Could not open \"%s\"\n", argv[1]);
         return 1;
+
     }
     init_object(&obj);
     read_object(inf, &obj);
     
     
-    printf("Object file has:\n  %zu vertices\n  %zu normals\n  %zu texture coordinates\n  %zu faces\n  %d objects",
+    printf("Object file has:\n  %zu vertices\n  %zu normals\n  %zu texture coordinates\n  %zu faces\n  %d objects\n",
            obj.num_verts, obj.num_norms, obj.num_texts, obj.num_faces, 1);
+
+    RiBegin(RI_NULL);
+    RiOption("trace", "maxdepth", &md, RI_NULL);
+    RiSides(2);
+
+
+    scene.cam.location[0] = rad;
+    scene.cam.location[1] = rad;
+    scene.cam.location[2] = rad;
+
+    scene.cam.look_at[0]= 0.0;
+    scene.cam.look_at[1]= 0.0;
+    scene.cam.look_at[2]= 0.0;
+    scene.cam.roll = 0.0;
+    
+    scene.fprefix = argv[2];
+
+    for (fnum = 0; fnum < NUM_FRAMES; ++fnum) {
+        scene.cam.location[0] = rad * sin(t);
+        scene.cam.location[2] = rad * cos(t);
+        t += dt;
+        printf("Rendering frame %lu\n", fnum);
+        doFrame(fnum, &scene, &obj);
+    }
+    RiEnd();
 
     free_object(&obj);
 
