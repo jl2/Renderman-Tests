@@ -8,22 +8,10 @@
 
 enum obj_entry_type {vertex, normal, text_coord, face, object, comment, bad};
 
-/* typedef struct vertex_s { */
-/*     double x; */
-/*     double y; */
-/*     double z; */
-/* } vertex_t; */
-
 typedef struct text_coord_s {
     double s;
     double t;
 } text_coord_t;
-
-/* typedef struct normal_s { */
-/*     double i; */
-/*     double j; */
-/*     double k; */
-/* } normal_t; */
 
 typedef struct face_s {
     size_t size;
@@ -194,8 +182,6 @@ const char *type_to_string(enum obj_entry_type ot) {
         return "comment";
     case object:
         return "object";
-    /* default: */
-    /*     return "unknown type"; */
     }
 }
 
@@ -361,7 +347,10 @@ void read_data(FILE *inf, wave_object_t *obj) {
     char *pts[20];
     size_t cur_pt = 0;
     int in_word = 0;
-
+    char *num_start;
+    char *num_end;
+    
+    
     // Save original file positon
     fpos_t original_pos;
     fgetpos(inf, &original_pos);
@@ -384,32 +373,11 @@ void read_data(FILE *inf, wave_object_t *obj) {
         switch (obj_type) {
         case vertex:
             // Find the 'v' and skip it and the white space after it
-            i = strchr(in_buffer, 'v')  - in_buffer + 1;
-            while (isspace(in_buffer[i])) ++i;
-            j = i;
-            while (!isspace(in_buffer[j])) ++j;
-            tmp = in_buffer[j];
-            in_buffer[j] = '\0';
-            xt = atof(in_buffer+i);
-            in_buffer[j] = tmp;
+            num_start = strchr(in_buffer, 'v')+1;
 
-            i = j;
-            while (isspace(in_buffer[i])) ++i;
-            j = i;
-            while (!isspace(in_buffer[j])) ++j;
-            tmp = in_buffer[j];
-            in_buffer[j] = '\0';
-            yt = atof(in_buffer+i);
-            in_buffer[j] = tmp;
-
-            i = j;
-            while (isspace(in_buffer[i])) ++i;
-            j = i;
-            while (!isspace(in_buffer[j])) ++j;
-            tmp = in_buffer[j];
-            in_buffer[j] = '\0';
-            zt = atof(in_buffer+i);
-            in_buffer[j] = tmp;
+            xt = strtod(num_start, &num_end);
+            yt = strtod(num_end, &num_end);
+            zt = strtod(num_end, &num_end);
 
             obj->verts[cur_vert][0] = (RtFloat)xt;
             obj->verts[cur_vert][1] = (RtFloat)yt;
@@ -420,32 +388,12 @@ void read_data(FILE *inf, wave_object_t *obj) {
 
         case normal:
             // Find the 'n' and skip it and the white space after it
-            i = strchr(in_buffer, 'n')  - in_buffer + 1;
-            while (isspace(in_buffer[i])) ++i;
-            j = i;
-            while (!isspace(in_buffer[j])) ++j;
-            tmp = in_buffer[j];
-            in_buffer[j] = '\0';
-            it = atof(in_buffer+i);
-            in_buffer[j] = tmp;
+            num_start = strchr(in_buffer, 'n')+1;
 
-            i = j;
-            while (isspace(in_buffer[i])) ++i;
-            j = i;
-            while (!isspace(in_buffer[j])) ++j;
-            tmp = in_buffer[j];
-            in_buffer[j] = '\0';
-            jt = atof(in_buffer+i);
-            in_buffer[j] = tmp;
+            it = strtod(num_start, &num_end);
+            jt = strtod(num_end, &num_end);
+            kt = strtod(num_end, &num_end);
 
-            i = j;
-            while (isspace(in_buffer[i])) ++i;
-            j = i;
-            while (!isspace(in_buffer[j])) ++j;
-            tmp = in_buffer[j];
-            in_buffer[j] = '\0';
-            kt = atof(in_buffer+i);
-            in_buffer[j] = tmp;
             obj->norms[cur_norm][0] = it;
             obj->norms[cur_norm][1] = jt;
             obj->norms[cur_norm][2] = kt;
@@ -456,23 +404,10 @@ void read_data(FILE *inf, wave_object_t *obj) {
 
         case text_coord:
             // Find the "vt" and skip it and the white space after it
-            i = strchr(in_buffer, 'v')  - in_buffer + 2;
-            while (isspace(in_buffer[i])) ++i;
-            j = i;
-            while (!isspace(in_buffer[j])) ++j;
-            tmp = in_buffer[j];
-            in_buffer[j] = '\0';
-            st = atof(in_buffer+i);
-            in_buffer[j] = tmp;
+            num_start = strchr(in_buffer, 'v')+2;
 
-            i = j;
-            while (isspace(in_buffer[i])) ++i;
-            j = i;
-            while (!isspace(in_buffer[j])) ++j;
-            tmp = in_buffer[j];
-            in_buffer[j] = '\0';
-            tt = atof(in_buffer+i);
-            in_buffer[j] = tmp;
+            st = strtod(num_start, &num_end);
+            tt = strtod(num_end, &num_end);
 
             obj->text_coords[cur_text].s = st;
             obj->text_coords[cur_text].t = tt;
@@ -540,7 +475,6 @@ void read_data(FILE *inf, wave_object_t *obj) {
             break;
         }
             
-        /* printf("\"%s\" is a %s.\n", in_buffer, type_to_string(get_entry_type(in_buffer))); */
     } while (!feof(inf));
 
     // Return to original position
@@ -548,9 +482,7 @@ void read_data(FILE *inf, wave_object_t *obj) {
 }
 
 void show_object(wave_object_t *obj) {
-    /* RiSphere(20, -20,20, 360, RI_NULL); */
     RtPoint *verts = malloc(sizeof(RtPoint)*(obj->largest_face));
-    /* RtPoint *norms = malloc(sizeof(RtPoint)*(obj->largest_face)); */
     RtInt *nverts = malloc(sizeof(RtInt)*(obj->num_faces));
     
     int hasNorms = 1;
@@ -599,7 +531,8 @@ void doFrame(size_t fNum, scene_info_t *scene, wave_object_t *obj) {
     RtPoint lightPos = {40,80,40};
 
     RiFrameBegin(fNum);
-
+    RtColor bgcolor = {0.2,0.8,0.2};
+    RiImager("background", "color background", bgcolor, RI_NULL);
     sprintf(buffer, "images/%s%05lu.tif", scene->fprefix, fNum);
     RiDisplay(buffer,(char*)"file",(char*)"rgba",RI_NULL);
   
@@ -634,10 +567,10 @@ void doFrame(size_t fNum, scene_info_t *scene, wave_object_t *obj) {
 int main(int argc, char *argv[]) {
     FILE *inf;
     wave_object_t obj;
-    const size_t NUM_FRAMES = 20;
+    const size_t NUM_FRAMES = 360;
     RtInt md = 4;
     scene_info_t scene;
-    double rad = 500;
+    double rad = 20;
     double t = 0.0;
     double dt = 2.0*PI/(NUM_FRAMES-1);
     size_t fnum;
