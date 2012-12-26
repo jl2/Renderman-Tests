@@ -95,7 +95,7 @@ int main(int argc, char *argv[]) {
     const size_t NUM_FRAMES = 100;
     RtInt md = 4;
     scene_info_t scene;
-    double rad = 8.0;
+    double rad = 3.0;
     double t = 0.0;
     const double tmin = 0.0;
     const double tmax = 2.0;
@@ -145,7 +145,10 @@ int main(int argc, char *argv[]) {
         RiProjection((char*)"perspective",RI_NULL);
 
         PlaceCamera(&scene.cam);
-        
+        RiShadingInterpolation("smooth");
+        RtFloat bound = 0.25;
+        char *space = "object";
+        RiAttribute ("displacementbound", "sphere", (RtPointer)&bound, "space", (RtPointer)&space, RI_NULL);
         RiAttribute("visibility", "int trace", &on, RI_NULL);
         RiAttribute( "visibility",
                      "int camera", (RtPointer)&on,
@@ -166,44 +169,61 @@ int main(int argc, char *argv[]) {
         RiAttributeBegin();
         /* RtColor col = {((double)fnum)/NUM_FRAMES,1.0-((double)fnum)/NUM_FRAMES,0.0}; */
         RtColor col = {0.0,1.0,0.0};
-        RiSurface((char*)"matte", RI_NULL);
+        RiSurface((char*)"funkyglass", RI_NULL);
+        RtColor opa = {0.5,0.5,0.0};
+        RiOpacity(opa);
+        RtFloat km = 0.25;
+        RiDisplacement((char*)"stucco", (RtToken)"Km", (RtPointer)&km, RI_NULL);
         RiColor(col);
         /* RtColor opa = {0.75,0.75,0.75}; */
         /* RiOpacity(opa); */
 
         RiTransformBegin();
         RtFloat bsz = t+0.1;
-        RtFloat mats[16*4] = {bsz, 0.0, 0.0, 0.0,
-                              0.0, bsz, 0.0, 0.0,
-                              0.0, 0.0, bsz, 0.0,
-                              0.0, 0.0, 0.0, 1.0,
+        RtFloat mats[] = {bsz, 0.0, 0.0, 0.0,
+                          0.0, bsz, 0.0, 0.0,
+                          0.0, 0.0, bsz, 0.0,
+                          0.0, 0.0, 0.0, 1.0,
 
-                              bsz, 0.0, 0.0, 0.0,
-                              0.0, bsz, 0.0, 0.0,
-                              0.0, 0.0, bsz, 0.0,
-                              2.0, 0.0, 0.0, 1.0,
+                          bsz, 0.0, 0.0, 0.0,
+                          0.0, bsz, 0.0, 0.0,
+                          0.0, 0.0, bsz, 0.0,
+                          1.2, 0.0, 0.0, 1.0,
 
-                              bsz, 0.0, 0.0, 0.0,
-                              0.0, bsz, 0.0, 0.0,
-                              0.0, 0.0, bsz, 0.0,
-                              2.0, 0.0, 2.0, 1.0,
+                          bsz, 0.0, 0.0, 0.0,
+                          0.0, bsz, 0.0, 0.0,
+                          0.0, 0.0, bsz, 0.0,
+                          1.2, 0.0, 1.2, 1.0,
 
-                              bsz, 0.0, 0.0, 0.0,
-                              0.0, bsz, 0.0, 0.0,
-                              0.0, 0.0, bsz, 0.0,
-                              0.0, 0.0, 2.0, 1.0,
+                          bsz, 0.0, 0.0, 0.0,
+                          0.0, bsz, 0.0, 0.0,
+                          0.0, 0.0, bsz, 0.0,
+                          0.0, 0.0, 1.2, 1.0,
+
+                          bsz, 0.0, 0.0, 0.0,
+                          0.0, bsz, 0.0, 0.0,
+                          0.0, 0.0, bsz, 0.0,
+                          0.5, 0.0, 0.5, 1.0,
+
+                          /* bsz, 0.0, 0.0, 0.0, */
+                          /* 0.0, bsz, 0.0, 0.0, */
+                          /* 0.0, 0.0, bsz, 0.0, */
+                          /* 0.5, -1.0, 0.5, 1.0, */
         };
         RtInt ops[] = {1001, 0*16,
                        1001, 1*16,
                        1001, 2*16,
                        1001, 3*16,
-                       0, 4, 0,1,2,3};
+                       1001, 4*16,
+                       /* 1001, 5*16, */
+                       0, 5, 0,1,2, 3,4
+        };
         RiTranslate(-1.0, 0.0, -1.0);
-        RiBlobby(4,
+        RiBlobby(5,
                  /* Ints */
-                 14, ops,
+                 17, ops,
                  /* Floats */
-                 4 * 16, mats,
+                 5 * 16, mats,
                  /* Strings */
                  0, (RtString*)RI_NULL, RI_NULL);
 
