@@ -169,9 +169,9 @@ int main(int argc, char *argv[]) {
         RiAttributeBegin();
         /* RtColor col = {((double)fnum)/NUM_FRAMES,1.0-((double)fnum)/NUM_FRAMES,0.0}; */
         RtColor col = {0.0,1.0,0.0};
-        RiSurface((char*)"funkyglass", RI_NULL);
-        RtColor opa = {0.5,0.5,0.0};
-        RiOpacity(opa);
+        RiSurface((char*)"matte", RI_NULL);
+        /* RtColor opa = {0.5,0.5,0.0}; */
+        /* RiOpacity(opa); */
         RtFloat km = 0.25;
         RiDisplacement((char*)"stucco", (RtToken)"Km", (RtPointer)&km, RI_NULL);
         RiColor(col);
@@ -219,13 +219,20 @@ int main(int argc, char *argv[]) {
                        0, 5, 0,1,2, 3,4
         };
         RiTranslate(-1.0, 0.0, -1.0);
+        RtFloat colors[] = {1.0,0.0,0.0,
+                            0.0,1.0,0.0,
+                            0.0,0.0,1.0,
+                            1.0,1.0,0.0,
+                            0.0,1.0,1.0};
+                            
         RiBlobby(5,
                  /* Ints */
                  17, ops,
                  /* Floats */
                  5 * 16, mats,
                  /* Strings */
-                 0, (RtString*)RI_NULL, RI_NULL);
+                 0, (RtString*)RI_NULL,
+                 "Cs", colors,RI_NULL);
 
         RiTransformEnd();
         RiAttributeEnd();
