@@ -1,0 +1,7 @@
+PROJECT(SphereBlobs C)
+set(CMAKE_C_FLAGS "-std=c99")
+cmake_minimum_required(VERSION 2.6)
+find_package(3Delight)
+include_directories(${3Delight_INCLUDE_DIR})
+ADD_EXECUTABLE(SphereBlobs sblobs.c)
+TARGET_LINK_LIBRARIES(SphereBlobs ${3Delight_LIBRARY})
