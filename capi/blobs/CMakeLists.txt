@@ -1,0 +1,6 @@
+PROJECT(Blobs C)
+cmake_minimum_required(VERSION 2.6)
+find_package(3Delight)
+include_directories(${3Delight_INCLUDE_DIR})
+ADD_EXECUTABLE(Blobs blobs.c)
+TARGET_LINK_LIBRARIES(Blobs ${3Delight_LIBRARY})
