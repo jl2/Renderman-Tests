@@ -92,10 +92,10 @@ int main(int argc, char *argv[]) {
     }
     char *fprefix = argv[1];
     srand(time(NULL));
-    const size_t NUM_FRAMES = 100;
+    const size_t NUM_FRAMES = 1;
     RtInt md = 4;
     scene_info_t scene;
-    double rad = 3.0;
+    double rad = 12.0;
     double t = 0.0;
     const double tmin = 0.0;
     const double tmax = 2.0;
@@ -113,7 +113,7 @@ int main(int argc, char *argv[]) {
     scene.cam.look_at[0]= 0.0;
     scene.cam.look_at[1]= 0.0;
     scene.cam.look_at[2]= 0.0;
-    scene.cam.roll = 0.0;
+    scene.cam.roll = 180.0;
 
     scene.fprefix = fprefix;
 
@@ -179,57 +179,54 @@ int main(int argc, char *argv[]) {
         /* RiOpacity(opa); */
 
         RiTransformBegin();
-        RtFloat bsz = t+0.2;
-        RtFloat mats[] = {bsz, 0.0, 0.0, 0.0,
-                          0.0, bsz, 0.0, 0.0,
-                          0.0, 0.0, bsz, 0.0,
-                          -1.2, 0.0, 0.0, 1.0,
-
-                          0.25, 0.0, 0.0, 0.0,
-                          0.0, 0.25, 0.0, 0.0,
-                          0.0, 0.0, 8, 0.0,
+        RtFloat r1 = 2.0;
+        RtFloat r2 = 2.0;
+        RtFloat r3 = 3.0;
+        RtFloat mats[] = {r1, 0.0, 0.0, 0.0,
+                          0.0, r1, 0.0, 0.0,
+                          0.0, 0.0, r1, 0.0,
                           0.0, 0.0, 0.0, 1.0,
 
-                          bsz, 0.0, 0.0, 0.0,
-                          0.0, bsz, 0.0, 0.0,
-                          0.0, 0.0, bsz, 0.0,
-                          1.2, 0.0, 0.0, 1.0,
+                          r2, 0.0, 0.0, 0.0,
+                          0.0, r2, 0.0, 0.0,
+                          0.0, 0.0, r2, 0.0,
+                          2.0, 0.0, 0.0, 1.0,
 
-                          /* bsz, 0.0, 0.0, 0.0, */
-                          /* 0.0, bsz, 0.0, 0.0, */
-                          /* 0.0, 0.0, bsz, 0.0, */
-                          /* 0.0, 0.0, 1.2, 1.0, */
+                          r3, 0.0, 0.0, 0.0,
+                          0.0, r3, 0.0, 0.0,
+                          0.0, 0.0, r3, 0.0,
+                          0.0, 0.0, 2.0, 1.0,
 
-                          /* bsz, 0.0, 0.0, 0.0, */
-                          /* 0.0, bsz, 0.0, 0.0, */
-                          /* 0.0, 0.0, bsz, 0.0, */
-                          /* 0.5, 0.0, 0.5, 1.0, */
-
-                          /* bsz, 0.0, 0.0, 0.0, */
-                          /* 0.0, bsz, 0.0, 0.0, */
-                          /* 0.0, 0.0, bsz, 0.0, */
-                          /* 0.5, -1.0, 0.5, 1.0, */
+                          0.5,
         };
         RtInt ops[] = {1001, 0*16,
                        1001, 1*16,
                        1001, 2*16,
-                       /* 1001, 3*16, */
-                       /* 1001, 4*16, */
-                       /* 1001, 5*16, */
-                       0, 3, 0,1,2, //, 3,4
+                       1000, 3*16,
+                       0, 2, 0, 1,
+                       4, 4, 2,
+                       2, 2, 4,5,
+                       
+                       
         };
-        RiTranslate(-1.0, 0.0, -1.0);
+        /* RiTranslate(-1.0, 0.0, -1.0); */
         RtFloat colors[] = {1.0,0.0,0.0,
+                            0.0,1.0,0.0,
+                            0.0,0.0,1.0,
+                            1.0,0.0,0.0,
+                            0.0,1.0,0.0,
+                            0.0,0.0,1.0,
+                            1.0,0.0,0.0,
                             0.0,1.0,0.0,
                             0.0,0.0,1.0,
                             1.0,1.0,0.0,
                             0.0,1.0,1.0};
                             
-        RiBlobby(3,
+        RiBlobby(4,
                  /* Ints */
-                 11, ops,
+                 sizeof(ops)/sizeof(RtInt), ops,
                  /* Floats */
-                 3 * 16, mats,
+                 sizeof(mats)/sizeof(RtFloat), mats,
                  /* Strings */
                  0, (RtString*)RI_NULL,
                  "Cs", colors,RI_NULL);

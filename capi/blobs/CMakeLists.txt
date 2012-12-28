@@ -1,4 +1,5 @@
 PROJECT(Blobs C)
+set(CMAKE_C_FLAGS "-std=c99")
 cmake_minimum_required(VERSION 2.6)
 find_package(3Delight)
 include_directories(${3Delight_INCLUDE_DIR})
