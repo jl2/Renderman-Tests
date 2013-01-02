@@ -147,7 +147,7 @@ int main(int argc, char *argv[]) {
     const size_t NUM_FRAMES = 120;
     RtInt md = 4;
     scene_info_t scene;
-    double rad = 16.0;
+    double rad = 12.0;
     double t = 0.0;
     const double tmin = 0.0;
     const double tmax = 2.0;
