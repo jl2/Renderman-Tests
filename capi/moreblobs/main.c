@@ -123,15 +123,15 @@ void PlaceCamera(camera_t *cam)
 }
 
 RtFloat xf(RtFloat u, RtFloat v) {
-    return 10.0*cos(u)*sin(v);
+    return 4.0*cos(u)*sin(v);
 }
 
 RtFloat yf(RtFloat u, RtFloat v) {
-    return 10.0*cos(v);
+    return 4.0*cos(v);
 }
 
 RtFloat zf(RtFloat u, RtFloat v) {
-    return 10.0*sin(u)*sin(v);
+    return 4.0*sin(u)*sin(v);
 }
 
 int main(int argc, char *argv[]) {
@@ -147,7 +147,7 @@ int main(int argc, char *argv[]) {
     const size_t NUM_FRAMES = 120;
     RtInt md = 4;
     scene_info_t scene;
-    double rad = 12.0;
+    double rad = 5.0;
     double t = 0.0;
     const double tmin = 0.0;
     const double tmax = 2.0;
@@ -174,7 +174,7 @@ int main(int argc, char *argv[]) {
 
     RtFloat *mats = malloc(sizeof(RtFloat)*16*NUM_SPHERES);
     size_t curOff = 0;
-    /* const RtFloat crad = 18.5; */
+    /* const RtFloat crad = 23.0; */
     /* mats[curOff+0] = crad; */
     /* mats[curOff+1] = 0.0; */
     /* mats[curOff+2] = 0.0; */
@@ -204,7 +204,7 @@ int main(int argc, char *argv[]) {
     RtFloat u = umin;
     RtFloat v = vmin;
 
-    const RtFloat orad = 0.8;;
+    const RtFloat orad = 0.35;
     for (size_t i=0; i<NUM_U; ++i) {
         v = vmin;
         for (size_t j=0;j<NUM_V; ++j) {
@@ -269,7 +269,7 @@ int main(int argc, char *argv[]) {
         RtPoint light2Pos = {0,120,0};
         RtPoint light3Pos = {0,40,0};
 
-        RiImager("background", RI_NULL);
+        /* RiImager("background", RI_NULL); */
 
         RiFrameBegin(fnum);
 
@@ -277,11 +277,12 @@ int main(int argc, char *argv[]) {
         sprintf(buffer, "images/%s%05lu.jpg", scene.fprefix, (unsigned long)fnum);
         RiDisplay(buffer,(char*)"jpeg",(char*)"rgb",RI_NULL);
   
-        RiFormat(800, 800, 1.0);
+        RiFormat(1280, 720, 1.0);
 
         RiProjection((char*)"perspective",RI_NULL);
 
         PlaceCamera(&scene.cam);
+        RiShadingRate(1.0);
         RiShadingInterpolation("smooth");
         /* RtFloat bound = 0.125; */
         /* char *space = "object"; */
@@ -307,7 +308,7 @@ int main(int argc, char *argv[]) {
         /* RtColor col = {((double)fnum)/NUM_FRAMES,1.0-((double)fnum)/NUM_FRAMES,0.0}; */
         RtColor col = {0.0,1.0,0.0};
         RiSurface((char*)"matte", RI_NULL);
-        RtColor opa = {0.5,0.5,0.0};
+        RtColor opa = {0.8,0.8,0.8};
         RiOpacity(opa);
         /* RtFloat km = 0.125; */
         /* RiDisplacement((char*)"stucco", (RtToken)"Km", (RtPointer)&km, RI_NULL); */
