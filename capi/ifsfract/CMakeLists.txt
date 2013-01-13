@@ -1,0 +1,7 @@
+PROJECT(ifsfract C)
+set(CMAKE_C_FLAGS "-std=c99 ${CMAKE_C_FLAGS}")
+cmake_minimum_required(VERSION 2.6)
+find_package(3Delight)
+include_directories(${3Delight_INCLUDE_DIR})
+ADD_EXECUTABLE(ifsfract main.c)
+TARGET_LINK_LIBRARIES(ifsfract ${3Delight_LIBRARY})
