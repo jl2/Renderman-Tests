@@ -1,0 +1,7 @@
+PROJECT(RenderBench CXX)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -stdlib=libc++")
+cmake_minimum_required(VERSION 2.6)
+find_package(3Delight)
+include_directories(${3Delight_INCLUDE_DIR})
+ADD_EXECUTABLE(RenderBench main.cpp)
+TARGET_LINK_LIBRARIES(RenderBench ${3Delight_LIBRARY})
