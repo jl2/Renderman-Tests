@@ -1,0 +1,7 @@
+PROJECT(GrowLife CXX)
+set(CMAKE_C_FLAGS "-std=c++11 -Wall -g")
+cmake_minimum_required(VERSION 2.6)
+find_package(3Delight)
+include_directories(${3Delight_INCLUDE_DIR})
+ADD_EXECUTABLE(GrowLife main.cpp)
+TARGET_LINK_LIBRARIES(GrowLife ${3Delight_LIBRARY})
