@@ -1,26 +1,36 @@
 #include "ri.h"
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdbool.h>
-
-#include <math.h>
-#include <time.h>
+#include <vector>
+#include <iostream>
+#include <cmath>
+#include <cstdlib>
 
 #define PI (3.141592654)
 
-size_t randUInt(size_t min, size_t max) {
-    return ((rand()%(max-min)) + min);
+size_t randUInt(std:: size_t min, size_t max) {
+    return ((std::rand()%(max-min)) + min);
 }
 
+
+class GameOfLife;
+
 class GameOfLife {
-    GameOfLife(size_t w, size_t h) : _width(w), _height(h) {
+public:
+    GameOfLife(size_t w, size_t h) : _width(w), _height(h), _num_on(0) {
 
         std::vector<bool> tmp;
         tmp.reserve(_height);
-        tmp.insert(tmp.begin(), false, _height);
+        tmp.insert(tmp.begin(), _height, false);
         _board.reserve(_width);
-        _board.insert(board.begin(), tmp, _width);
+        _board.insert(_board.begin(), _width, tmp);
+    }
+    GameOfLife(GameOfLife &original) : _width(original._width),
+                                       _height(original._height),
+                                       _num_on(original._num_on),
+                                       _board(original._board)
+    {
+        
+        
     }
     size_t GetWidth() const {
         return _width;
@@ -40,7 +50,8 @@ class GameOfLife {
         }
     }
     void Randomize(double prob) {
-        size_t numFilled = prob*_width*_height;
+        
+        int numFilled = prob*_width*_height;
         for (int i=0;i<numFilled; ++i) {
             size_t ri = randUInt(0, _height);
             size_t rj = randUInt(0, _width);
@@ -52,7 +63,7 @@ class GameOfLife {
 
     }
 
-    size_t CountNeighbors(size_t i, size_t j) {
+    size_t CountNeighbors(int i, int j) {
         int w = _width;
         int h = _height;
 
@@ -73,170 +84,119 @@ class GameOfLife {
 
         return num;
     }
+    GameOfLife *Evolve() {
+        GameOfLife *goes_to = new GameOfLife(*this);
+
+        
+        goes_to->_num_on = 0;
+        for (size_t i=0; i<goes_to->_width; ++i) {
+            for (size_t j=0; j<goes_to->_height; ++j) {
+                int num = CountNeighbors(i,j);
+
+                if (goes_to->_board[i][j]) {
+                    if ((num < 2) || (num > 3)) {
+                        goes_to->_board[i][j] = false;
+                    } else {
+                        goes_to->_board[i][j] = true;
+                        goes_to->_num_on += 1;
+                    }
+                } else {
+                    if (num == 3) {
+                        goes_to->_board[i][j] = true;
+                        goes_to->_num_on += 1;
+                    } else {
+                        goes_to->_board[i][j] = false;
+                    }
+                }
+            }
+        }
+        return goes_to;
+    }
+    void ShowRenderman() {
+        RiTransformBegin();
+        RiTranslate(-(_width/2.0), 0.0, -(_height/2.0));
+        for (size_t j=0; j<_height; ++j) {
+            RiTransformBegin();
+            for (size_t i=0; i<_width; ++i) {
+                if (_board[i][j]) {
+                    RiSphere(0.5, -0.5,0.5, 360.0, RI_NULL);
+                }
+                RiTranslate(1.0, 0.0, 0.0);
+            }
+            RiTransformEnd();
+            RiTranslate(0.0, 0.0, 1.0);
+        }
+        RiTransformEnd();
+    }
+    static void ShowRendermanBlobby(GameOfLife *boards[], size_t num) {
+        size_t totalOn = 0;
+        for (size_t i=0; i<num; ++i) {
+            totalOn += boards[i]->_num_on;
+        }
+        RtFloat *mats = new RtFloat[16*totalOn];
+        RtInt *ops = new RtInt[2*totalOn + 1*totalOn + 2];
+        size_t curOff = 0;
+        RiTransformBegin();
+        RiTranslate(-(boards[0]->_width/2.0), 0.0, -(boards[0]->_height/2.0));
+        for (size_t k=0; k<num; ++k) {
+            GameOfLife *board = boards[k];
+            for (size_t j=0; j<board->_height; ++j) {
+                for (size_t i=0; i<board->_width; ++i) {
+                    if (board->_board[i][j]) {
+                        mats[curOff+0] =1.2;
+                        mats[curOff+1] =0.0;
+                        mats[curOff+2] =0.0;
+                        mats[curOff+3] =0.0;
+                        mats[curOff+4] =0.0;
+                        mats[curOff+5] =1.2;
+                        mats[curOff+6] =0.0;
+                        mats[curOff+7] =0.0;
+                        mats[curOff+8] =0.0;
+                        mats[curOff+9] =0.0;
+                        mats[curOff+10] =1.2;
+                        mats[curOff+11] =0.0;
+                        mats[curOff+12] =(RtFloat)i;
+                        mats[curOff+13] =(RtFloat)k;
+                        mats[curOff+14] =(RtFloat)j;
+                        mats[curOff+15] =1.0;
+                        curOff += 16;
+                    }
+                }
+            }
+        }
+        curOff = 0;
+        for (size_t i=0;i<totalOn; ++i) {
+            ops[curOff] = 1001;
+            ops[curOff+1] = i*16;
+            curOff+=2;
+        }
+        ops[curOff] = 0;
+        curOff += 1;
+        ops[curOff] = totalOn;
+        curOff += 1;
+        for (size_t i=0;i<totalOn; ++i) {
+            ops[curOff] = i;
+            curOff += 1;
+        }
+        RiBlobby(totalOn,
+                 /* Ints */
+                 totalOn*3 + 2, ops,
+                 /* Floats */
+                 totalOn * 16, mats,
+                 /* Strings */
+                 0, (RtString*)RI_NULL, RI_NULL);
+        RiTransformEnd();
+        delete [] mats;
+        delete [] ops;
+    }
+
 private:
     size_t _width;
     size_t _height;
     size_t _num_on;
-    std::vector<std::vector<bool> > board;
+    std::vector<std::vector<bool> > _board;
 };
-typedef struct game_of_life_s {
-    size_t width;
-    size_t height;
-    size_t num_on;
-    bool **board;
-} game_of_life_t;
 
-size_t gol_count_neighbors(game_of_life_t *board, int i, int j) {
-    int w = _width;
-    int h = _height;
-
-    int num = 0;
-    int up = i-1>0 ? i-1 : h-1;
-    int down = i+1 <h-1 ? i+1 : 0;
-    int left = j-1>0 ? j-1 : w-1;
-    int right = j+1 < w-1 ? j+1 : 0;
-    
-    num += board->board[up][j];
-    num += board->board[down][j];
-    num += board->board[i][left];
-    num += board->board[i][right];
-    num += board->board[up][left];
-    num += board->board[up][right];
-    num += board->board[down][left];
-    num += board->board[down][right];
-
-    return num;
-}
-
-game_of_life_t *gol_evolve(game_of_life_t *board) {
-    int w = board->width;
-    int h = board->height;
-
-    game_of_life_t *goes_to = malloc(sizeof(game_of_life_t));
-    goes_to->width = w;
-    goes_to->height = h;
-    goes_to->num_on = 0;
-    goes_to->board = malloc(sizeof(bool*)*goes_to->width);
-
-    for (size_t i=0; i<goes_to->width; ++i) {
-        goes_to->board[i] = malloc(sizeof(bool)*goes_to->height);
-        for (size_t j=0; j<goes_to->height; ++j) {
-            int num = gol_count_neighbors(board, i,j);
-
-            if (board->board[i][j]) {
-                if ((num < 2) || (num > 3)) {
-                    goes_to->board[i][j] = false;
-                } else {
-                    goes_to->board[i][j] = true;
-                    goes_to->num_on += 1;
-                }
-            } else {
-                if (num == 3) {
-                    goes_to->board[i][j] = true;
-                    goes_to->num_on += 1;
-                } else {
-                    goes_to->board[i][j] = false;
-                }
-            }
-        }
-    }
-    return goes_to;
-}
-
-void gol_show_renderman(game_of_life_t *board) {
-    RiTransformBegin();
-    RiTranslate(-(board->width/2.0), 0.0, -(board->height/2.0));
-    for (size_t j=0; j<board->height; ++j) {
-        RiTransformBegin();
-        for (size_t i=0; i<board->width; ++i) {
-            if (board->board[i][j]) {
-                RiSphere(0.5, -0.5,0.5, 360.0, RI_NULL);
-            }
-            RiTranslate(1.0, 0.0, 0.0);
-        }
-        RiTransformEnd();
-        RiTranslate(0.0, 0.0, 1.0);
-    }
-    RiTransformEnd();
-}
-
-void gol_show_renderman_blobby(game_of_life_t *boards[], size_t num) {
-    size_t totalOn = 0;
-    for (size_t i=0; i<num; ++i) {
-        totalOn += boards[i]->num_on;
-    }
-    RtFloat *mats = malloc(sizeof(RtFloat)*16*totalOn);
-    RtInt *ops = malloc(sizeof(RtInt)*(2*totalOn + 1*totalOn + 2));
-    size_t curOff = 0;
-    RiTransformBegin();
-    RiTranslate(-(boards[0]->width/2.0), 0.0, -(boards[0]->height/2.0));
-    for (size_t k=0; k<num; ++k) {
-        game_of_life_t *board = boards[k];
-        for (size_t j=0; j<board->height; ++j) {
-            for (size_t i=0; i<board->width; ++i) {
-                if (board->board[i][j]) {
-                    mats[curOff+0] =1.2;
-                    mats[curOff+1] =0.0;
-                    mats[curOff+2] =0.0;
-                    mats[curOff+3] =0.0;
-                    mats[curOff+4] =0.0;
-                    mats[curOff+5] =1.2;
-                    mats[curOff+6] =0.0;
-                    mats[curOff+7] =0.0;
-                    mats[curOff+8] =0.0;
-                    mats[curOff+9] =0.0;
-                    mats[curOff+10] =1.2;
-                    mats[curOff+11] =0.0;
-                    mats[curOff+12] =(RtFloat)i;
-                    mats[curOff+13] =(RtFloat)k;
-                    mats[curOff+14] =(RtFloat)j;
-                    mats[curOff+15] =1.0;
-                    curOff += 16;
-                }
-            }
-        }
-    }
-    curOff = 0;
-    for (size_t i=0;i<totalOn; ++i) {
-        ops[curOff] = 1001;
-        ops[curOff+1] = i*16;
-        curOff+=2;
-    }
-    ops[curOff] = 0;
-    curOff += 1;
-    ops[curOff] = totalOn;
-    curOff += 1;
-    for (size_t i=0;i<totalOn; ++i) {
-        ops[curOff] = i;
-        curOff += 1;
-    }
-    RiBlobby(totalOn,
-             /* Ints */
-             totalOn*3 + 2, ops,
-             /* Floats */
-             totalOn * 16, mats,
-             /* Strings */
-             0, (RtString*)RI_NULL, RI_NULL);
-    RiTransformEnd();
-}
-
-/* #define DEBUG_LIFE 1 */
-
-#ifdef DEBUG_LIFE
-int main(int argc, char *argv[]) {
-    game_of_life_t *cur= gol_create_board(50,50);
-
-    gol_random_init(cur, 0.025);
-    
-    for (int i=0;i<50; ++i) {
-        
-        gol_debug_show_life(cur);
-        game_of_life_t *next = gol_evolve(cur);
-        gol_destroy_board(&cur);
-        cur = next;
-    }
-}
-#else
 typedef struct camera_s {
     RtPoint location;
     RtPoint look_at;
@@ -308,10 +268,10 @@ void PlaceCamera(camera_t *cam)
 
 int main(int argc, char *argv[]) {
     if (argc < 2) {
-        printf("Not enough arguments given!\n");
+        std::cout << "Not enough arguments given!\n";
         return 1;
     } else if (argc > 2) {
-        printf("Too many arguments given!\n");
+        std::cout << "Too many arguments given!\n";
         return 1;
     }
     char *fprefix = argv[1];
@@ -339,10 +299,10 @@ int main(int argc, char *argv[]) {
 
     scene.fprefix = fprefix;
 
-    game_of_life_t *boards[NUM_FRAMES+1];
+    GameOfLife *boards[NUM_FRAMES+1];
     size_t curBoard = 0;
-    boards[curBoard] = gol_create_board(80,80);
-    gol_random_init(boards[curBoard], 0.125);
+    boards[curBoard] = new GameOfLife(80,80);
+    boards[curBoard]->Randomize(0.25);
     
     for (fnum = 0; fnum < NUM_FRAMES; ++fnum) {
         scene.cam.location[0] = rad*sin(t);
@@ -350,7 +310,7 @@ int main(int argc, char *argv[]) {
         scene.cam.location[2] = rad*cos(t);
         /* scene.cam.look_at[1] = rad; */
         t += dt;
-        printf("Rendering frame %lu\n", fnum);
+        std::cout << "Rendering frame " << fnum << "\n";
         RtInt on = 1;
         char buffer[256];
         RtString on_string = "on";
@@ -358,7 +318,7 @@ int main(int argc, char *argv[]) {
         RtPoint light1Pos = {80,80,80};
         RtPoint light2Pos = {0,120,0};
         RtPoint light3Pos = {0,40,0};
-RiImager("background", RI_NULL);
+        RiImager("background", RI_NULL);
         RiFrameBegin(fnum);
 
         sprintf(buffer, "images/%s%05zd.jpg", scene.fprefix, fnum);
@@ -396,15 +356,17 @@ RiImager("background", RI_NULL);
         /* RiOpacity(opa); */
 
         RiTransformBegin();
-        /* for (size_t i=0;i<(curBoard+1); ++i) { */
-        /*     gol_show_renderman(boards[i]); */
-        /*     RiTranslate(0,1.0,0); */
-        /* } */
-        gol_show_renderman_blobby(boards, curBoard);
+        for (size_t i=0;i<(curBoard+1); ++i) {
+            boards[i]->ShowRenderman();
+            // gol_show_renderman(boards[i]);
+            RiTranslate(0,1.0,0);
+        }
+        // GameOfLife::ShowRendermanBlobby(boards, curBoard);
+        // gol_show_renderman_blobby(boards, curBoard);
         RiTransformEnd();
         RiAttributeEnd();
 
-        boards[curBoard+1] = gol_evolve(boards[curBoard]);
+        boards[curBoard+1] = boards[curBoard]->Evolve();
         curBoard+=1;
         
         RiWorldEnd();
@@ -414,9 +376,9 @@ RiImager("background", RI_NULL);
     RiEnd();
 
     for (size_t i=0; i<curBoard; ++i) {
-        gol_destroy_board(&boards[i]);
+        delete boards[i];
+        // gol_destroy_board(&boards[i]);
     }
 
     return 0;
 }
-#endif
